@@ -103,7 +103,31 @@ export default function InboxPage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const audioNotificationRef = useRef<HTMLAudioElement | null>(null);
     const socket = useSocket();
+
+    useEffect(() => {
+        // Inicializa áudio e pede permissão de notificação
+        audioNotificationRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3");
+        if (Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    const playAlert = () => {
+        if (audioNotificationRef.current) {
+            audioNotificationRef.current.play().catch(() => {
+                // Alguns navegadores bloqueiam autoplay sem interação prévia
+                console.log("Áudio bloqueado pelo navegador");
+            });
+        }
+    };
+
+    const showNotification = (title: string, body: string) => {
+        if (Notification.permission === "granted" && document.visibilityState !== "visible") {
+            new Notification(title, { body, icon: "/favicon.ico" });
+        }
+    };
 
     const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -114,6 +138,13 @@ export default function InboxPage() {
         if (!socket) return;
         const handleAppMessage = async (data: any) => {
             loadCounts();
+
+            // Notificação Sonora e Push para mensagens de clientes
+            if (data.message && !data.message.fromMe) {
+                playAlert();
+                showNotification(`Nova mensagem de ${data.ticket?.contact?.name || "Cliente"}`, data.message.body);
+            }
+
             if (activeTicket && data.ticketId === activeTicket.id) {
                 setMessages(prev => {
                     if (prev.some((m: any) => m.id === data.message?.id)) return prev;
