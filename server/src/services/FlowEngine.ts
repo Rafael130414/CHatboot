@@ -198,14 +198,33 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
             if (node.type === "audioNode") {
                 const audioUrl = interpolate(node.data.url || "", ctx);
                 if (audioUrl) {
-                    logger.info(`[Flow] AudioNode: sending ${audioUrl}`);
+                    logger.info(`[Flow] AudioNode: preparing ${audioUrl}`);
                     await socket.sendPresenceUpdate("recording", remoteJid);
-                    await new Promise(r => setTimeout(r, 2000));
-                    await socket.sendMessage(remoteJid, {
-                        audio: { url: audioUrl },
-                        mimetype: 'audio/mp4',
-                        ptt: true // Envia como mensagem de voz
-                    });
+
+                    try {
+                        let audioPayload: any = { url: audioUrl };
+
+                        // Se o áudio for local (nossa própria VPS), enviamos o arquivo direto para evitar erros de download do WhatsApp
+                        if (audioUrl.includes('/public/')) {
+                            const fileName = audioUrl.split('/public/').pop();
+                            const fs = await import('fs');
+                            const path = await import('path');
+                            const localPath = path.resolve("public", fileName || "");
+
+                            if (fs.existsSync(localPath)) {
+                                logger.info(`[Flow] AudioNode: sending local file ${localPath}`);
+                                audioPayload = fs.readFileSync(localPath);
+                            }
+                        }
+
+                        await socket.sendMessage(remoteJid, {
+                            audio: audioPayload,
+                            mimetype: 'audio/mpeg',
+                            ptt: true
+                        });
+                    } catch (err) {
+                        logger.error(`[Flow] Error sending audio: ${err}`);
+                    }
                 }
                 const edge = edges.find((e: any) => e.source === nodeId);
                 if (edge) return await executeNode(edge.target);
