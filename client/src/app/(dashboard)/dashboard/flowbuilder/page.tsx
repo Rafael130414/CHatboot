@@ -5,6 +5,7 @@ import {
     ReactFlow, addEdge, useNodesState, useEdgesState,
     Controls, MiniMap, Background, BackgroundVariant,
     Handle, Position, Connection, type Node, type NodeProps,
+    Panel, ControlButton, type Edge
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import api from "@/services/api";
@@ -13,8 +14,9 @@ import {
     Users, ArrowLeft, Power, ChevronRight, Clock, Code,
     BrainCircuit, Terminal, X, Settings2, LayoutGrid, Workflow,
     Image as ImageIcon, Music, FileText, Globe, Variable, Tag as TagIcon, Copy, Undo2, Redo2,
-    ArrowRightLeft, Unlink
+    ArrowRightLeft, Unlink, Mic, Square, Check, Info, Settings, Edit2, Maximize2, Minimize2, ZoomIn, ZoomOut, Phone
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 // ── Estilos base dos nós ──────────────────────────────
@@ -533,19 +535,30 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
                 )}
 
                 {node.type === "audioNode" && (
-                    <>
+                    <div className="space-y-4">
                         <div>
                             <label style={labelStyle}>URL do Áudio</label>
                             <input style={inputStyle} value={d.url || ""} placeholder="https://exemplo.com/audio.mp3"
                                 onChange={e => onUpdate(node.id, { ...d, url: e.target.value })} />
                         </div>
-                        <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
+
+                        <div className="p-4 rounded-3xl bg-slate-900/60 border border-white/5 space-y-3">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">🎙️ Gravar Áudio na Hora</label>
+                            <AudioRecorder onSave={(fileName) => {
+                                const fullUrl = `${window.location.origin.replace('3000', '4000')}/public/${fileName}`;
+                                onUpdate(node.id, { ...d, url: fullUrl });
+                                toast.success("Áudio gravado e link gerado!");
+                            }} />
+                        </div>
+
+                        <div className="flex items-center gap-2 p-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)" }}>
                             <input type="checkbox" id="ptt" checked={d.ptt ?? true}
                                 onChange={e => onUpdate(node.id, { ...d, ptt: e.target.checked })} />
                             <label htmlFor="ptt" className="text-xs text-slate-300">Enviar como mensagem de voz (PTT)</label>
                         </div>
-                    </>
+                    </div>
                 )}
+
 
                 {node.type === "documentNode" && (
                     <>
@@ -648,9 +661,110 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
     );
 }
 
+// ── Gravador de Áudio ───────────────────────────────
+const AudioRecorder = ({ onSave }: { onSave: (fileName: string) => void }) => {
+    const [isRecording, setIsRecording] = useState(false);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const timerRef = useRef<any>(null);
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            const chunks: any[] = [];
+
+            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/mp3' });
+                setAudioBlob(blob);
+                setAudioUrl(URL.createObjectURL(blob));
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+        } catch (err) {
+            toast.error("Microfone não autorizado ou não encontrado.");
+        }
+    };
+
+    const stopRecording = () => {
+        mediaRecorderRef.current?.stop();
+        mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
+        setIsRecording(false);
+        clearInterval(timerRef.current);
+    };
+
+    const handleUpload = async () => {
+        if (!audioBlob) return;
+        const formData = new FormData();
+        formData.append("file", audioBlob, "recording.mp3");
+        try {
+            const { data } = await api.post("/media/upload", formData);
+            onSave(data.fileName);
+            setAudioBlob(null);
+            setAudioUrl(null);
+        } catch (err) {
+            toast.error("Erro ao subir áudio");
+        }
+    };
+
+    const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+    return (
+        <div className="space-y-3">
+            {!audioUrl && !isRecording && (
+                <button onClick={startRecording} className="w-full h-14 rounded-2xl flex items-center justify-center gap-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/10 transition-all group">
+                    <Mic className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Clique para Gravar</span>
+                </button>
+            )}
+
+            {isRecording && (
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 h-14 rounded-2xl bg-red-600 flex items-center justify-between px-5 animate-pulse shadow-lg shadow-red-600/30">
+                        <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                            <span className="text-xs font-black text-white tabular-nums">{formatTime(recordingTime)}</span>
+                        </div>
+                        <span className="text-[10px] font-black text-white/70 uppercase">Gravando...</span>
+                    </div>
+                    <button onClick={stopRecording} className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-red-600 shadow-xl border border-white/20">
+                        <Square className="w-5 h-5 fill-current" />
+                    </button>
+                </div>
+            )}
+
+            {audioUrl && !isRecording && (
+                <div className="space-y-3">
+                    <div className="p-4 rounded-2xl bg-slate-900 border border-white/5 flex flex-col gap-3">
+                        <audio src={audioUrl} controls className="w-full h-10 filter invert brightness-150" />
+                        <div className="flex gap-2">
+                            <button onClick={handleUpload} className="flex-1 h-11 rounded-xl bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30">
+                                <Check className="w-4 h-4" /> Salvar Áudio
+                            </button>
+                            <button onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="w-11 h-11 rounded-xl bg-white/5 text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-colors flex items-center justify-center">
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── Página Principal ─────────────────────────────────
 export default function FlowbuilderPage() {
+    const studioRef = useRef<HTMLDivElement>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const [flows, setFlows] = useState<any[]>([]);
+
     const [activeFlow, setActiveFlow] = useState<any>(null);
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
@@ -690,6 +804,24 @@ export default function FlowbuilderPage() {
         }
         return () => clearInterval(interval);
     }, [activeFlow]);
+
+    // ── Lógica de Tela Cheia ──────────────────────────
+    const toggleFullscreen = () => {
+        if (!studioRef.current) return;
+        if (!document.fullscreenElement) {
+            studioRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {
+                toast.error("Seu navegador bloqueou a tela cheia.");
+            });
+        } else {
+            document.exitFullscreen().then(() => setIsFullscreen(false));
+        }
+    };
+
+    useEffect(() => {
+        const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFsChange);
+        return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    }, []);
 
     // ── Undo/Redo history ────────────────────────────
     const historyRef = useRef<{ nodes: Node[], edges: any[] }[]>([]);
@@ -1057,10 +1189,9 @@ export default function FlowbuilderPage() {
     ];
 
     return (
-        <div className="flex h-full overflow-hidden" style={{ background: "#060d1a" }}>
-
-            {/* ── Sidebar Esquerda ── */}
-            <div className="w-[280px] flex flex-col flex-shrink-0" style={{ background: "rgba(10,18,34,0.9)", borderRight: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(20px)" }}>
+        <div ref={studioRef} className={`flex h-[calc(100vh-64px)] bg-[#030711] overflow-hidden relative ${isFullscreen ? 'h-screen' : ''}`} style={isFullscreen ? { position: 'fixed', inset: 0, zIndex: 9999, height: '100vh' } : {}}>
+            {/* Sidebar Lateral */}
+            <div className="w-[280px] h-full bg-[#060D1A] border-r border-white/5 flex flex-col items-stretch overflow-hidden z-20" style={{ background: "rgba(10,18,34,0.9)", borderRight: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(20px)" }}>
                 {/* Header */}
                 <div className="p-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="flex items-center gap-2.5 mb-1">
@@ -1300,7 +1431,12 @@ export default function FlowbuilderPage() {
                                 boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
                             }}
                             className="bg-slate-900 border-white/10 [&_button]:!bg-[#0a1628] [&_button]:!border-white/5 [&_button]:!fill-white [&_svg]:!fill-white hover:[&_button]:!bg-slate-800"
-                        />
+                        >
+                            <ControlButton onClick={toggleFullscreen} title="Alternar Tela Cheia">
+                                {isFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
+                            </ControlButton>
+                        </Controls>
+
                         <MiniMap
                             className="!bg-slate-900/50 !border-white/10 !rounded-3xl !backdrop-blur-md overflow-hidden"
                             nodeColor="#00c9a7"
