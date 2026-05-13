@@ -758,14 +758,19 @@ const AudioRecorder = ({ onSave }: { onSave: (fileName: string) => void }) => {
         const formData = new FormData();
         formData.append("file", audioBlob, "recording.mp3");
         try {
-            const { data } = await api.post("/media/upload", formData);
-            onSave(data.fileName);
+            // Usa o baseUrl configurado no serviço de API em vez de adivinhar
+            const response = await api.post("/media/upload", formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            onSave(response.data.fileName);
             setAudioBlob(null);
             setAudioUrl(null);
         } catch (err) {
-            toast.error("Erro ao subir áudio");
+            toast.error("Erro ao subir áudio. Verifique sua conexão com o servidor.");
+            console.error("Upload error:", err);
         }
     };
+
 
     const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
