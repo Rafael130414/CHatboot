@@ -107,12 +107,13 @@ export default function InboxPage() {
     const socket = useSocket();
 
     useEffect(() => {
-        // Inicializa áudio e pede permissão de notificação
-        audioNotificationRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3");
+        // Inicializa áudio (Som mais profissional e limpo)
+        audioNotificationRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         if (Notification.permission === "default") {
             Notification.requestPermission();
         }
     }, []);
+
 
     const playAlert = () => {
         if (audioNotificationRef.current) {

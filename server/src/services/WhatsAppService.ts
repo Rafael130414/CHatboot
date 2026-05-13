@@ -297,13 +297,15 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
 
                         console.log(`[BotLogic] Ticket: ${ticket.id}, NewCycle: ${isNewInteraction}, WithinHours: ${withinHours}`);
 
-                        if (!withinHours && isNewInteraction && waConn?.outOfHoursMessage) {
-                            console.log(`[BotLogic] Sending OutOfHours message to ${remoteJid}`);
-                            await sleep(delay);
-                            await socket.sendMessage(remoteJid, { text: waConn.outOfHoursMessage });
-                        } else if (withinHours) {
-                            // Envia Boas-vindas apenas se for o início/reabertura do ciclo e estiver dentro do horário
-                            if (isNewInteraction && waConn?.welcomeMessage) {
+                        if (!withinHours) {
+                            if (isNewInteraction && waConn?.outOfHoursMessage && waConn.outOfHoursMessage.trim() !== "") {
+                                console.log(`[BotLogic] Sending OutOfHours message to ${remoteJid}`);
+                                await sleep(delay);
+                                await socket.sendMessage(remoteJid, { text: waConn.outOfHoursMessage });
+                            }
+                        } else {
+                            // Envia Boas-vindas apenas se for o início/reabertura do ciclo e houver mensagem definida
+                            if (isNewInteraction && waConn?.welcomeMessage && waConn.welcomeMessage.trim() !== "") {
                                 console.log(`[BotLogic] Sending Welcome message to ${remoteJid}`);
                                 await sleep(delay);
                                 await socket.sendMessage(remoteJid, { text: waConn.welcomeMessage });
@@ -313,6 +315,7 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                             await sleep(delay);
                             processFlow(ticket.id, companyId, whatsappId, body, remoteJid).catch(e => logger.error("Flow error:", e));
                         }
+
                     }
 
                     // 5. Emitir via Socket
