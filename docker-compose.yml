@@ -29,12 +29,12 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - PORT=4000
-      - DATABASE_URL=postgresql://chatboot:chatboot_password@postgres:5432/chatboot_db?schema=public
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_SECRET=CHATBOOT_SUPER_SECRET_KEY_123456
-      - NODE_ENV=production
+      - PORT=${PORT}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=${NODE_ENV}
     depends_on:
       - postgres
       - redis
@@ -50,7 +50,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://37.148.134.48:4000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
       - api
 
