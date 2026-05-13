@@ -146,12 +146,15 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                     // Extrair número limpo (apenas os dígitos antes do @)
                     const cleanNumber = remoteJid.split("@")[0].replace(/\D/g, "");
 
+                    // Só capturamos o pushName se a mensagem NÃO for nossa (evita salvar nosso próprio nome no cliente)
+                    const contactName = (!msg.key.fromMe && msg.pushName) ? msg.pushName : null;
+
                     if (!contact) {
                         contact = await prisma.contact.create({
                             data: {
                                 remoteJid,
                                 number: cleanNumber,
-                                name: msg.pushName || cleanNumber,
+                                name: contactName || cleanNumber,
                                 companyId
                             }
                         });
@@ -160,6 +163,13 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         socket.profilePictureUrl(remoteJid, 'image').then(ppUrl => {
                             prisma.contact.update({ where: { id: contact!.id }, data: { profilePic: ppUrl } }).catch(() => { });
                         }).catch(() => { });
+                    } else if (contactName && contact.name !== contactName) {
+                        // Se o nome capturado for diferente do que temos no banco, atualizamos para o nome real do cliente
+                        console.log(`[BotLogic] Updating contact name from "${contact.name}" to "${contactName}"`);
+                        contact = await prisma.contact.update({
+                            where: { id: contact.id },
+                            data: { name: contactName }
+                        });
                     }
 
                     // 2. Localizar ou Abrir Novo Ciclo de Ticket
