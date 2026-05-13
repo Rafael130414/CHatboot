@@ -214,7 +214,8 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         }
 
                         if (lastClosed) {
-                            // Reabrir ticket antigo, resetando para Geral, Pendente e SEM atendente
+                            // Reabrir ticket antigo
+                            isNewInteraction = true; // MARCAR COMO NOVO CICLO PARA DISPARAR BOAS-VINDAS
                             ticket = await prisma.ticket.update({
                                 where: { id: lastClosed.id },
                                 data: { status: "pending", whatsappId, departmentId: geralDept.id, userId: null, updatedAt: new Date() }
@@ -223,6 +224,7 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                                 action: "reopen", ticketId: ticket.id, ticketStatus: "pending", contact
                             });
                         } else {
+
                             // Criar ticket do zero
                             ticket = await prisma.ticket.create({
                                 data: { contactId: contact.id, companyId, whatsappId, status: "pending", departmentId: geralDept.id }
