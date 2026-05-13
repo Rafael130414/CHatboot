@@ -19,7 +19,14 @@ app.use(cors());
 app.use(express.json());
 
 // Servir arquivos estáticos (Mídias)
-app.use("/public", express.static(path.resolve("public")));
+// Servir arquivos estáticos (Mídias)
+app.use("/public", express.static(path.resolve("public"), {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.mp3')) res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+}));
+
 
 app.use("/auth", authRoutes);
 app.use("/whatsapp", whatsappRoutes);

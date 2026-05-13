@@ -194,7 +194,26 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                 return nodeId;
             }
 
+            // ── AUDIO NODE ────────────────────────────────────
+            if (node.type === "audioNode") {
+                const audioUrl = interpolate(node.data.url || "", ctx);
+                if (audioUrl) {
+                    logger.info(`[Flow] AudioNode: sending ${audioUrl}`);
+                    await socket.sendPresenceUpdate("recording", remoteJid);
+                    await new Promise(r => setTimeout(r, 2000));
+                    await socket.sendMessage(remoteJid, {
+                        audio: { url: audioUrl },
+                        mimetype: 'audio/mp4',
+                        ptt: true // Envia como mensagem de voz
+                    });
+                }
+                const edge = edges.find((e: any) => e.source === nodeId);
+                if (edge) return await executeNode(edge.target);
+                return null;
+            }
+
             // ── DELAY NODE ───────────────────────────────────
+
             if (node.type === "delayNode") {
                 const ms = Math.min(node.data.delay || 1000, 30000); // max 30s
                 logger.info(`[Flow] DelayNode: waiting ${ms}ms`);
