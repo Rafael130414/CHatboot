@@ -201,10 +201,10 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         }
 
                         if (lastClosed) {
-                            // Reabrir ticket antigo, resetando para Geral e Pending
+                            // Reabrir ticket antigo, resetando para Geral, Pendente e SEM atendente
                             ticket = await prisma.ticket.update({
                                 where: { id: lastClosed.id },
-                                data: { status: "pending", whatsappId, departmentId: geralDept.id, updatedAt: new Date() }
+                                data: { status: "pending", whatsappId, departmentId: geralDept.id, userId: null, updatedAt: new Date() }
                             });
                             getIO().to(`company-${companyId}`).emit("appMessage", {
                                 action: "reopen", ticketId: ticket.id, ticketStatus: "pending", contact
