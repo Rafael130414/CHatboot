@@ -78,3 +78,7 @@ npm run dev
 - Construtor de Fluxos de Chatbot (Drag & Drop).
 - Relatórios Avançados com exportação em PDF.
 - Integração com IA (OpenAI/Claude) para respostas automáticas.
+
+
+
+tZrBfmhsvr↵

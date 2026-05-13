@@ -23,6 +23,7 @@ model Company {
   tickets      Ticket[]
   users        User[]
   whatsapps    WhatsApp[]
+  schedules    Schedule[]
 }
 
 model User {
@@ -144,4 +145,14 @@ model Flow {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   company     Company  @relation(fields: [companyId], references: [id])
+}
+
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  weekday   String   // Ex: "Segunda-feira", "Sábado"
+  start     String   @default("08:00")
+  end       String   @default("18:00")
+  active    Boolean  @default(true)
+  companyId Int 
+  company   Company  @relation(fields: [companyId], references: [id])
 }
