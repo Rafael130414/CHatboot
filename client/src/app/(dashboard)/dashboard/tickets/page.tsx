@@ -5,7 +5,7 @@ import {
     MessageSquare, Send, MoreVertical, Smile, Paperclip,
     CheckCircle, Clock, Hash, Circle, FileText, Users,
     ArrowRightLeft, Tag as TagIcon, Phone, Search, Inbox, X, Smartphone, UserCog,
-    Play, Pause, Volume2
+    Play, Pause, Volume2, Trash2
 } from "lucide-react";
 import api from "@/services/api";
 import { useSocket } from "@/hooks/useSocket";
@@ -129,10 +129,18 @@ export default function InboxPage() {
         };
 
         socket.on("appMessage", handleAppMessage);
-        socket.on("ticket", handleTicketUpdate);
+        socket.on("ticket", (data: any) => {
+            if (data.action === "delete") {
+                setTickets(prev => prev.filter(t => t.id !== data.ticketId));
+                if (activeTicket?.id === data.ticketId) setActiveTicket(null);
+                loadCounts();
+            } else {
+                handleTicketUpdate(data);
+            }
+        });
         return () => {
             socket.off("appMessage", handleAppMessage);
-            socket.off("ticket", handleTicketUpdate);
+            socket.off("ticket");
         };
     }, [socket, activeTicket, statusFilter]);
 
@@ -189,6 +197,20 @@ export default function InboxPage() {
             setActiveTicket(null);
             loadTickets();
         } catch (err) { }
+    };
+
+    const handleDeleteTicket = async () => {
+        if (!activeTicket) return;
+        if (!confirm("Tem certeza que deseja excluir permanentemente esta conversa e todas as mensagens? Esta ação não pode ser desfeita.")) return;
+        try {
+            const token = localStorage.getItem("token");
+            await api.delete(`/tickets/${activeTicket.id}`, { headers: { Authorization: `Bearer ${token}` } });
+            setActiveTicket(null);
+            loadTickets();
+            loadCounts();
+        } catch (err) {
+            alert("Erro ao excluir conversa.");
+        }
     };
 
     const handleSend = async (e?: React.FormEvent) => {
@@ -497,6 +519,13 @@ export default function InboxPage() {
                                         style={{ background: "rgba(71,85,105,0.4)", border: "1px solid rgba(71,85,105,0.3)" }}>
                                         <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                                         Finalizar
+                                    </button>
+                                )}
+                                {activeTicket.status === 'closed' && (
+                                    <button onClick={handleDeleteTicket}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105 bg-red-500/20 text-red-500 border border-red-500/30 hover:bg-red-500 hover:text-white">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Excluir Conversa
                                     </button>
                                 )}
                                 <button className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-white transition-all"

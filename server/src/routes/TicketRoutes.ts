@@ -171,4 +171,35 @@ ticketRoutes.get("/:id", isAuth, async (req, res) => {
 // Enviar mensagem (Texto ou Mídia)
 ticketRoutes.post("/:id/messages", isAuth, upload.single("media"), sendMessage);
 
+// Deletar Ticket
+ticketRoutes.delete("/:id", isAuth, async (req, res) => {
+    const { id } = req.params;
+    const companyId = req.user.companyId;
+
+    try {
+        const ticket = await prisma.ticket.findFirst({
+            where: { id: Number(id), companyId }
+        });
+
+        if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+
+        // Deletar mensagens primeiro (caso o cascade não esteja configurado no DB)
+        await prisma.message.deleteMany({ where: { ticketId: ticket.id } });
+
+        await prisma.ticket.delete({
+            where: { id: ticket.id }
+        });
+
+        getIO().to(`company-${companyId}`).emit("ticket", {
+            action: "delete",
+            ticketId: ticket.id
+        });
+
+        return res.json({ success: true });
+    } catch (err: any) {
+        return res.status(500).json({ error: "Failed to delete ticket" });
+    }
+});
+
 export default ticketRoutes;
+
