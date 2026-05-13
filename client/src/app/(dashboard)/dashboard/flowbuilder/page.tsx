@@ -18,68 +18,84 @@ import {
 import { toast } from "sonner";
 
 // ── Estilos base dos nós ──────────────────────────────
-const nBase = "rounded-2xl border shadow-2xl text-white text-xs font-semibold min-w-[200px] transition-all duration-200";
+const nBase = "rounded-3xl border shadow-[0_10px_40px_rgba(0,0,0,0.4)] text-white text-xs font-semibold min-w-[220px] transition-all duration-300 backdrop-blur-xl";
 
 // ── Componentes dos Nós ───────────────────────────────
 
 const StartNode = ({ data }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{ background: "linear-gradient(135deg,#00c9a7,#0088ff)", border: "1px solid rgba(0,201,167,0.5)", boxShadow: "0 8px 32px rgba(0,201,167,0.3)" }}>
-        <Handle type="source" position={Position.Bottom} className="!bg-white !w-3 !h-3" />
-        <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            <span className="font-bold">Início do Fluxo</span>
+    <div className={`${nBase} p-5 overflow-hidden relative group`} style={{
+        background: "linear-gradient(135deg, rgba(0,201,167,0.8), rgba(0,136,255,0.8))",
+        border: "1px solid rgba(255,255,255,0.3)",
+        boxShadow: "0 10px 40px rgba(0,201,167,0.4)"
+    }}>
+        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+        <Handle type="source" position={Position.Bottom} className="!bg-white !w-3.5 !h-3.5 !border-2 !border-[#00c9a7] !-bottom-1.5" />
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                <Zap className="w-5 h-5 text-white animate-pulse" />
+            </div>
+            <div>
+                <span className="font-black text-sm tracking-tight uppercase">Início do Fluxo</span>
+                <p className="text-[10px] font-medium text-white/70">Ponto de entrada</p>
+            </div>
         </div>
-        <p className="text-[10px] font-normal mt-1 opacity-80">Ponto de entrada</p>
     </div>
 );
 
 const MessageNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#00c9a7" : "rgba(0,201,167,0.2)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(0,201,167,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#00c9a7" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(0,201,167,0.3), inset 0 0 10px rgba(0,201,167,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-[#00c9a7] !w-3 !h-3" />
-        <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(0,201,167,0.15)" }}>
-                <MessageSquare className="w-3.5 h-3.5 text-[#00c9a7]" />
+        <Handle type="target" position={Position.Top} className="!bg-[#00c9a7] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
+        <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #00c9a7, #0088ff)" }}>
+                <MessageSquare className="w-4 h-4 text-white" />
             </div>
-            <span style={{ color: "#00c9a7" }}>Mensagem</span>
+            <div>
+                <span className="text-[10px] font-black uppercase tracking-wider opacity-60">Mensagem</span>
+                <div className="h-0.5 w-8 rounded-full bg-[#00c9a7] mt-0.5" />
+            </div>
         </div>
-        <p className="text-[11px] text-slate-400 font-normal leading-relaxed whitespace-pre-wrap max-w-[200px] truncate">
-            {(data as any).message || "Clique para editar..."}
+        <p className="text-[12px] text-slate-300 font-medium leading-relaxed italic whitespace-pre-wrap max-w-[200px] line-clamp-3">
+            {(data as any).message || "Escreva sua mensagem aqui..."}
         </p>
-        <Handle type="source" position={Position.Bottom} className="!bg-[#00c9a7] !w-3 !h-3" />
+        <Handle type="source" position={Position.Bottom} className="!bg-[#00c9a7] !w-3 !h-3 !border-2 !border-slate-900 !-bottom-1.5" />
     </div>
 );
 
 const MenuNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#3b82f6" : "rgba(59,130,246,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(59,130,246,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#3b82f6" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(59,130,246,0.3), inset 0 0 10px rgba(59,130,246,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-[#3b82f6] !w-3 !h-3" />
-        <div className="flex items-center gap-2 mb-3">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(59,130,246,0.15)" }}>
-                <GitBranch className="w-3.5 h-3.5 text-[#3b82f6]" />
+        <Handle type="target" position={Position.Top} className="!bg-[#3b82f6] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
+        <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}>
+                <GitBranch className="w-4 h-4 text-white" />
             </div>
-            <span style={{ color: "#3b82f6" }}>Menu de Opções</span>
+            <div>
+                <span className="text-[10px] font-black uppercase tracking-wider opacity-60">Menu Interativo</span>
+                <div className="h-0.5 w-8 rounded-full bg-[#3b82f6] mt-0.5" />
+            </div>
         </div>
-        <p className="text-[10px] text-slate-400 font-normal mb-2.5 leading-relaxed">{(data as any).message || "Escolha uma opção:"}</p>
-        <div className="space-y-1.5">
+        <p className="text-[11px] text-slate-400 font-medium mb-4 leading-relaxed line-clamp-2">{(data as any).message || "Selecione uma opção:"}</p>
+        <div className="space-y-2">
             {((data as any).options || ["Opção 1", "Opção 2"]).map((opt: string, i: number) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.15)" }}>
-                    <span className="text-[10px] font-black" style={{ color: "#3b82f6" }}>{i + 1}.</span>
-                    <span className="text-[10px] text-white">{opt}</span>
+                <div key={i} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors relative" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/20">
+                        {i + 1}
+                    </div>
+                    <span className="text-[11px] text-slate-200 font-semibold">{opt}</span>
+                    <Handle type="source" position={Position.Right} id={`option-${i}`}
+                        style={{ top: '50%', right: '-12px', transform: 'translateY(-50%)' }}
+                        className="!bg-[#3b82f6] !w-2.5 !h-2.5 !border-2 !border-slate-900" />
                 </div>
             ))}
         </div>
-        {((data as any).options || ["Opção 1", "Opção 2"]).map((_: string, i: number) => (
-            <Handle key={i} type="source" position={Position.Bottom} id={`option-${i}`}
-                style={{ left: `${((i + 1) / (((data as any).options?.length || 2) + 1)) * 100}%` }}
-                className="!bg-[#3b82f6] !w-3 !h-3" />
-        ))}
     </div>
 );
+
 
 const TransferNode = ({ data, selected }: NodeProps) => (
     <div className={`${nBase} p-4`} style={{
@@ -1127,18 +1143,57 @@ export default function FlowbuilderPage() {
             </div>
 
             {/* ── Canvas Principal ── */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative bg-[#060D1A]">
+                {activeFlow && (
+                    <div className="absolute top-6 left-6 right-6 z-[90] flex items-center justify-between">
+                        {/* Header do Fluxo */}
+                        <div className="flex items-center gap-4 bg-[#0a1628]/80 backdrop-blur-3xl border border-white/10 px-6 py-3.5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg">
+                                <Workflow className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-sm font-black text-white uppercase tracking-tight">{activeFlow.name}</h2>
+                                    <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${activeFlow.active ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-700/50 text-slate-400 border border-slate-600/30"}`}>
+                                        {activeFlow.active ? "Ativo" : "Inativo"}
+                                    </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-medium">Chatbot Automation Studio</p>
+                            </div>
+                        </div>
+
+                        {/* Ações Rápidas */}
+                        <div className="flex items-center gap-3 bg-[#0a1628]/80 backdrop-blur-3xl border border-white/10 p-2 rounded-[22px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                            <button onClick={() => startSimulation()}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all hover:scale-105 active:scale-95 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white">
+                                <Play className="w-3.5 h-3.5" />
+                                Simular
+                            </button>
+                            <button onClick={saveFlow}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all hover:scale-105 active:scale-95 bg-blue-600 text-white shadow-lg shadow-blue-500/30">
+                                <Save className="w-3.5 h-3.5" />
+                                Salvar Alterações
+                            </button>
+                            <div className="w-px h-6 bg-white/10 mx-1" />
+                            <button onClick={() => { setActiveFlow(null); setNodes([]); setEdges([]); }}
+                                className="p-2.5 rounded-xl text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-all">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {!activeFlow ? (
                     <div className="flex flex-col items-center justify-center h-full gap-6">
                         <div className="relative">
-                            <div className="absolute inset-0 blur-3xl" style={{ background: "radial-gradient(circle, rgba(0,201,167,0.15) 0%, transparent 70%)" }} />
-                            <div className="w-24 h-24 rounded-3xl flex items-center justify-center relative" style={{ background: "rgba(0,201,167,0.06)", border: "1px solid rgba(0,201,167,0.12)" }}>
-                                <LayoutGrid className="w-10 h-10 text-slate-700" />
+                            <div className="absolute inset-0 blur-3xl opacity-50" style={{ background: "radial-gradient(circle, #00c9a7 0%, #0088ff 70%)" }} />
+                            <div className="relative w-24 h-24 rounded-[32px] bg-slate-900 border border-white/10 flex items-center justify-center shadow-2xl">
+                                <Workflow className="w-12 h-12 text-slate-500" />
                             </div>
                         </div>
                         <div className="text-center">
-                            <h3 className="text-xl font-bold text-white mb-2">FlowBuilder</h3>
-                            <p className="text-sm text-slate-500 max-w-sm leading-relaxed">Crie fluxos visuais de chatbot para automatizar atendimentos. Selecione ou crie um fluxo na lateral.</p>
+                            <h2 className="text-xl font-black text-white mb-2">Flow Studio</h2>
+                            <p className="text-slate-500 text-sm max-w-[300px]">Selecione ou crie um novo fluxo na barra lateral para começar.</p>
                         </div>
                     </div>
                 ) : (
@@ -1151,37 +1206,63 @@ export default function FlowbuilderPage() {
                                 border: '2px solid #10b981',
                                 scale: 1.05
                             } : n.style
-                        }))} edges={edges}
-                        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+                        }))}
+                        edges={edges}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
                         onConnect={onConnect}
+                        nodeTypes={nodeTypes}
                         onNodeClick={(_, node) => setSelectedNode(node)}
                         onPaneClick={() => setSelectedNode(null)}
-                        nodeTypes={nodeTypes} fitView
-                        style={{ background: "#060d1a" }}>
-                        <Background variant={BackgroundVariant.Dots} gap={28} size={0.8} color="rgba(255,255,255,0.06)" />
-                        <Controls className="!bg-[#0f1c30] !border-[#1e3a6e]/40 !rounded-xl !shadow-xl" />
-                        <MiniMap className="!bg-[#0a1628] !border-[#1e3a6e]/40 !rounded-xl !shadow-xl"
-                            nodeColor="#00c9a7" maskColor="rgba(6,13,26,0.7)" />
+                        fitView
+                        style={{ background: "#060D1A" }}
+                        defaultEdgeOptions={{
+                            type: 'smoothstep',
+                            animated: true,
+                            style: { strokeWidth: 3, stroke: 'rgba(255,255,255,0.1)' }
+                        }}
+                    >
+                        <Background color="#1e293b" variant={BackgroundVariant.Dots} gap={24} size={1} />
+                        <Controls
+                            style={{
+                                background: "#0a1628",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: "12px",
+                                overflow: "hidden"
+                            }}
+                            className="bg-slate-900 border-white/10 [&_button]:border-white/5 [&_button]:bg-transparent [&_svg]:fill-white"
+                        />
+                        <MiniMap
+                            className="!bg-slate-900/50 !border-white/10 !rounded-3xl !backdrop-blur-md overflow-hidden"
+                            nodeColor="#00c9a7"
+                            maskColor="rgba(6,13,26,0.7)" />
                     </ReactFlow>
                 )}
 
-                {/* Drawer do Simulador */}
+                {/* Drawer do Simulador (Visual estilo Celular) */}
                 {isSimulating && (
-                    <div className="absolute right-4 top-4 bottom-4 w-[350px] bg-[#0a1628]/95 backdrop-blur-xl border border-white/10 shadow-2xl z-[100] flex flex-col rounded-3xl overflow-hidden animate-in slide-in-from-right duration-300">
-                        <div className="p-5 border-b border-white/5 flex items-center justify-between bg-emerald-500/5">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center animate-pulse">
-                                    <Play className="w-4 h-4 text-emerald-400" />
+                    <div className="absolute right-8 top-8 bottom-8 w-[380px] bg-[#0f172a] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.6)] z-[100] flex flex-col rounded-[3rem] overflow-hidden animate-in slide-in-from-right duration-500">
+                        {/* Notch do "Celular" */}
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl z-10" />
+
+                        <div className="p-8 pt-10 border-b border-white/5 flex items-center justify-between bg-gradient-to-b from-white/5 to-transparent">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center">
+                                    <Play className="w-5 h-5 text-white fill-current" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">Simulador</h3>
-                                    <p className="text-[10px] text-emerald-500/70 font-medium uppercase tracking-wider">Modo de Teste</p>
+                                    <h3 className="text-sm font-black text-white uppercase tracking-tight">Simulator</h3>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">LIVE TEST</p>
+                                    </div>
                                 </div>
                             </div>
-                            <button onClick={() => { setIsSimulating(false); setActiveSimNodeId(null); }} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-colors">
-                                <X className="w-4 h-4" />
+                            <button onClick={() => { setIsSimulating(false); setActiveSimNodeId(null); }} className="w-9 h-9 flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 rounded-full text-slate-500 transition-all">
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
+
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
                             {simMessages.length === 0 && (
