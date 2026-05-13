@@ -12,6 +12,45 @@ import { processFlow } from "./FlowEngine.js";
 import path from "path";
 import fs from "fs";
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Verifica se o horário atual está dentro do horário de atendimento da empresa.
+ * Força o uso do fuso horário de Brasília (UTC-3).
+ */
+const isWithinBusinessHours = async (companyId: number): Promise<boolean> => {
+    // Ajuste para Horário de Brasília (UTC-3)
+    const nowUtc = new Date();
+    const nowBr = new Date(nowUtc.getTime() - (3 * 60 * 60 * 1000));
+
+    const dayNames = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+    const todayName = dayNames[nowBr.getUTCDay()];
+
+    console.log(`[BusinessHours] Checking for ${todayName} at ${nowBr.getUTCHours()}:${nowBr.getUTCMinutes()} (BR Time)`);
+
+    const schedule = await prisma.schedule.findFirst({
+        where: { companyId, weekday: todayName, active: true }
+    });
+
+    if (!schedule) {
+        console.log(`[BusinessHours] No active schedule found for ${todayName}`);
+        return false;
+    }
+
+    const [startH, startM] = schedule.start.split(":").map(Number);
+    const [endH, endM] = schedule.end.split(":").map(Number);
+
+    const currentMinutes = nowBr.getUTCHours() * 60 + nowBr.getUTCMinutes();
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    const result = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    console.log(`[BusinessHours] Result: ${result} (Current: ${currentMinutes}, Start: ${startMinutes}, End: ${endMinutes})`);
+    return result;
+};
+
 export const sessions: any = {};
 
 export const initWhatsApp = async (whatsappId: number, companyId: number) => {
@@ -123,7 +162,7 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         }).catch(() => { });
                     }
 
-                    // 2. Localizar Ticket Ativo
+                    // 2. Localizar ou Abrir Novo Ciclo de Ticket
                     let ticket = await prisma.ticket.findFirst({
                         where: {
                             contactId: contact.id,
@@ -133,37 +172,34 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         orderBy: { updatedAt: 'desc' }
                     });
 
+                    let isNewInteraction = false;
+
                     if (!ticket) {
+                        isNewInteraction = true;
                         const lastClosed = await prisma.ticket.findFirst({
                             where: { contactId: contact.id, companyId, status: "closed" },
                             orderBy: { updatedAt: 'desc' }
                         });
 
-                        if (lastClosed) {
-                            // Garantir setor Geral
-                            let geralDept = await prisma.department.findFirst({
-                                where: { name: { contains: "Geral" }, companyId }
-                            });
-                            if (!geralDept) {
-                                geralDept = await prisma.department.create({ data: { name: "Geral", companyId, color: "#8b5cf6" } });
-                            }
+                        // Setor Geral Obrigatório para Início/Reabertura
+                        let geralDept = await prisma.department.findFirst({
+                            where: { name: { contains: "Geral" }, companyId }
+                        });
+                        if (!geralDept) {
+                            geralDept = await prisma.department.create({ data: { name: "Geral", companyId, color: "#8b5cf6" } });
+                        }
 
+                        if (lastClosed) {
+                            // Reabrir ticket antigo, resetando para Geral e Pending
                             ticket = await prisma.ticket.update({
                                 where: { id: lastClosed.id },
-                                data: { status: "pending", whatsappId, departmentId: geralDept.id }
+                                data: { status: "pending", whatsappId, departmentId: geralDept.id, updatedAt: new Date() }
                             });
                             getIO().to(`company-${companyId}`).emit("appMessage", {
                                 action: "reopen", ticketId: ticket.id, ticketStatus: "pending", contact
                             });
                         } else {
-                            // Garantir setor Geral
-                            let geralDept = await prisma.department.findFirst({
-                                where: { name: { contains: "Geral" }, companyId }
-                            });
-                            if (!geralDept) {
-                                geralDept = await prisma.department.create({ data: { name: "Geral", companyId, color: "#8b5cf6" } });
-                            }
-
+                            // Criar ticket do zero
                             ticket = await prisma.ticket.create({
                                 data: { contactId: contact.id, companyId, whatsappId, status: "pending", departmentId: geralDept.id }
                             });
@@ -194,9 +230,40 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         data: { lastMessageId: newMessage.id, updatedAt: new Date() }
                     });
 
-                    // 4. Executar Flowbuilder
+                    // 4. Boas-vindas + Verificação de Horário + FlowBuilder
                     if (!msg.key.fromMe && ticket.status === "pending") {
-                        processFlow(ticket.id, companyId, whatsappId, body, remoteJid).catch(e => logger.error("Flow error:", e));
+                        const [waConn, company] = await Promise.all([
+                            prisma.whatsApp.findUnique({
+                                where: { id: whatsappId },
+                                select: { id: true, welcomeMessage: true, outOfHoursMessage: true }
+                            }),
+                            prisma.company.findUnique({
+                                where: { id: companyId },
+                                select: { antiBanDelay: true }
+                            })
+                        ]);
+
+                        const delay = company?.antiBanDelay ?? 2000;
+                        const withinHours = await isWithinBusinessHours(companyId);
+
+                        console.log(`[BotLogic] Ticket: ${ticket.id}, NewCycle: ${isNewInteraction}, WithinHours: ${withinHours}`);
+
+                        if (!withinHours && waConn?.outOfHoursMessage) {
+                            console.log(`[BotLogic] Sending OutOfHours message to ${remoteJid}`);
+                            await sleep(delay);
+                            await socket.sendMessage(remoteJid, { text: waConn.outOfHoursMessage });
+                        } else {
+                            // Envia Boas-vindas apenas se for o início/reabertura do ciclo
+                            if (isNewInteraction && waConn?.welcomeMessage) {
+                                console.log(`[BotLogic] Sending Welcome message to ${remoteJid}`);
+                                await sleep(delay);
+                                await socket.sendMessage(remoteJid, { text: waConn.welcomeMessage });
+                            }
+
+                            console.log(`[BotLogic] Starting FlowBuilder for ${remoteJid}`);
+                            await sleep(delay);
+                            processFlow(ticket.id, companyId, whatsappId, body, remoteJid).catch(e => logger.error("Flow error:", e));
+                        }
                     }
 
                     // 5. Emitir via Socket

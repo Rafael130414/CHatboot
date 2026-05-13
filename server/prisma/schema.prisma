@@ -8,22 +8,24 @@ datasource db {
 }
 
 model Company {
-  id           Int          @id @default(autoincrement())
-  name         String
-  status       String       @default("active")
-  plan         String       @default("free")
-  apiToken     String?      @unique
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  contacts     Contact[]
-  departments  Department[]
-  flows        Flow[]
-  quickReplies QuickReply[]
-  tags         Tag[]
-  tickets      Ticket[]
-  users        User[]
-  whatsapps    WhatsApp[]
-  schedules    Schedule[]
+  id                Int          @id @default(autoincrement())
+  name              String
+  status            String       @default("active")
+  plan              String       @default("free")
+  apiToken          String?      @unique
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  // Bot Settings (global)
+  antiBanDelay      Int          @default(2000)
+  contacts          Contact[]
+  departments       Department[]
+  flows             Flow[]
+  quickReplies      QuickReply[]
+  tags              Tag[]
+  tickets           Ticket[]
+  users             User[]
+  whatsapps         WhatsApp[]
+  schedules         Schedule[]
 }
 
 model User {
@@ -51,18 +53,21 @@ model Department {
 }
 
 model WhatsApp {
-  id          Int      @id @default(autoincrement())
-  name        String
-  status      String   @default("DISCONNECTED")
-  type        String   @default("qr")
-  token       String?
-  phoneNumber String?
-  companyId   Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  qrcode      String?
-  tickets     Ticket[]
-  company     Company  @relation(fields: [companyId], references: [id])
+  id                Int      @id @default(autoincrement())
+  name              String
+  status            String   @default("DISCONNECTED")
+  type              String   @default("qr")
+  token             String?
+  phoneNumber       String?
+  companyId         Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  qrcode            String?
+  // Per-connection bot messages
+  welcomeMessage    String?
+  outOfHoursMessage String?
+  tickets           Ticket[]
+  company           Company  @relation(fields: [companyId], references: [id])
 }
 
 model Contact {

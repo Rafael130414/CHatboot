@@ -13,8 +13,9 @@ import {
     Users, ArrowLeft, Power, ChevronRight, Clock, Code,
     BrainCircuit, Terminal, X, Settings2, LayoutGrid, Workflow,
     Image as ImageIcon, Music, FileText, Globe, Variable, Tag as TagIcon, Copy, Undo2, Redo2,
-    ArrowRightLeft
+    ArrowRightLeft, Unlink
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ── Estilos base dos nós ──────────────────────────────
 const nBase = "rounded-2xl border shadow-2xl text-white text-xs font-semibold min-w-[200px] transition-all duration-200";
@@ -284,19 +285,30 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
     };
     const color = nodeColors[node.type || ""] || "#00c9a7";
 
+    const disconnectOutputs = () => {
+        onUpdate(node.id, { ...d, _disconnect: Date.now() });
+    };
+
     return (
-        <div className="flex flex-col h-full">
-            <div className="p-5 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: `${color}20`, border: `1px solid ${color}30` }}>
-                        <Settings2 className="w-3.5 h-3.5" style={{ color }} />
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <Settings2 className="w-5 h-5 text-emerald-400" />
                     </div>
-                    <span className="text-sm font-bold text-white">Configurar Nó</span>
+                    <div>
+                        <h3 className="text-white font-bold text-sm">Editar Nó</h3>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">{node.id.split('-')[0]}</p>
+                    </div>
                 </div>
-                <button onClick={() => onDelete(node.id)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-400/10 transition-all">
-                    <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={disconnectOutputs} title="Desconectar Saídas" className="p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-all">
+                        <Unlink className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onDelete(node.id)} title="Excluir Nó" className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all">
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
@@ -613,6 +625,7 @@ export default function FlowbuilderPage() {
         historyIdxRef.current--;
         const snap = historyRef.current[historyIdxRef.current];
         setNodes(snap.nodes); setEdges(snap.edges);
+        toast.info("Desfeito", { duration: 1000 });
     }, [setNodes, setEdges]);
 
     const redo = useCallback(() => {
@@ -620,6 +633,7 @@ export default function FlowbuilderPage() {
         historyIdxRef.current++;
         const snap = historyRef.current[historyIdxRef.current];
         setNodes(snap.nodes); setEdges(snap.edges);
+        toast.info("Refeito", { duration: 1000 });
     }, [setNodes, setEdges]);
 
     // ── Lógica do Simulador ────────────────────────
@@ -864,8 +878,10 @@ export default function FlowbuilderPage() {
     };
 
     const onConnect = useCallback((params: Connection) => {
-        setEdges(eds => addEdge({ ...params, id: `edge-${Date.now()}`, animated: true, type: "smoothstep", style: { stroke: "#00c9a7", strokeWidth: 1.5 } }, eds));
-    }, [setEdges]);
+        const newEdges = addEdge({ ...params, id: `edge-${Date.now()}`, animated: true, type: "smoothstep", style: { stroke: "#00c9a7", strokeWidth: 1.5 } }, edges);
+        setEdges(newEdges);
+        pushHistory(nodes, newEdges);
+    }, [setEdges, nodes, edges, pushHistory]);
 
     const addNode = (type: string) => {
         const defaults: Record<string, any> = {
@@ -905,6 +921,14 @@ export default function FlowbuilderPage() {
     };
 
     const updateNodeData = (id: string, data: any) => {
+        if (data._disconnect) {
+            const updatedEdges = edges.filter((e: any) => e.source !== id);
+            setEdges(updatedEdges);
+            pushHistory(nodes, updatedEdges);
+            const { _disconnect, ...cleanData } = data;
+            setNodes(nds => nds.map(n => n.id === id ? { ...n, data: cleanData } : n));
+            return;
+        }
         setNodes(nds => nds.map(n => n.id === id ? { ...n, data } : n));
         setSelectedNode(prev => prev?.id === id ? { ...prev, data } as Node : prev);
     };
@@ -1027,6 +1051,19 @@ export default function FlowbuilderPage() {
                             <Terminal className="w-3.5 h-3.5 text-emerald-500" />
                             Editor JSON
                         </button>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={undo} title="Desfazer (Ctrl+Z)"
+                                className="py-2.5 rounded-xl text-xs font-bold text-slate-400 flex items-center justify-center gap-1.5 transition-all"
+                                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                                <Undo2 className="w-3.5 h-3.5" /> Desfazer
+                            </button>
+                            <button onClick={redo} title="Refazer (Ctrl+Y)"
+                                className="py-2.5 rounded-xl text-xs font-bold text-slate-400 flex items-center justify-center gap-1.5 transition-all"
+                                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                                <Redo2 className="w-3.5 h-3.5" /> Refazer
+                            </button>
+                        </div>
 
                         <button onClick={() => { setActiveFlow(null); setNodes([]); setEdges([]); }}
                             className="w-full py-2 text-[10px] font-semibold text-slate-600 hover:text-slate-400 flex items-center justify-center gap-1 transition-colors">

@@ -41,16 +41,19 @@ export default function InboxPage() {
                 });
             }
             await loadTickets();
-            if (data.action === "create" || data.action === "reopen") {
-                try {
-                    const token = localStorage.getItem("token");
-                    const { data: ticketData } = await api.get(`/tickets/${data.ticketId}`, { headers: { Authorization: `Bearer ${token}` } });
-                    if (ticketData && ticketData.status !== statusFilter) setStatusFilter(ticketData.status);
-                } catch (e) { }
-            }
         };
+
+        const handleTicketUpdate = async (data: any) => {
+            loadCounts();
+            loadTickets();
+        };
+
         socket.on("appMessage", handleAppMessage);
-        return () => { socket.off("appMessage", handleAppMessage); };
+        socket.on("ticket", handleTicketUpdate);
+        return () => {
+            socket.off("appMessage", handleAppMessage);
+            socket.off("ticket", handleTicketUpdate);
+        };
     }, [socket, activeTicket, statusFilter]);
 
     const loadCounts = async () => {
@@ -319,6 +322,15 @@ export default function InboxPage() {
                                                 </span>
                                             )}
                                         </div>
+                                        {/* Exibir Atendente responsável se estiver em atendimento */}
+                                        {t.user && (
+                                            <div className="mt-2 flex items-center gap-1.5">
+                                                <div className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center border border-white/10">
+                                                    <Users className="w-2 h-2 text-slate-500" />
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Atendente: {t.user.name}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -361,6 +373,15 @@ export default function InboxPage() {
                                                     style={{ background: "rgba(0,136,255,0.1)", color: "#0088ff", border: "1px solid rgba(0,136,255,0.2)" }}>
                                                     <Smartphone className="w-2.5 h-2.5" />
                                                     via {activeTicket.whatsapp.name}
+                                                </span>
+                                            </>
+                                        )}
+                                        {activeTicket.user && (
+                                            <>
+                                                <span className="text-slate-700">•</span>
+                                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800/50 text-slate-400 border border-white/5">
+                                                    <Users className="w-2.5 h-2.5" />
+                                                    {activeTicket.user.name}
                                                 </span>
                                             </>
                                         )}

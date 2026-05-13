@@ -12,20 +12,33 @@ import {
     ExternalLink,
     ShieldCheck,
     QrCode,
-    Globe
+    Globe,
+    MessageSquare,
+    Clock,
+    Send,
+    Save,
+    X
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import api from "@/services/api";
 import { useSocket } from "@/hooks/useSocket";
+import { toast } from "sonner";
 
 export default function ConnectionsPage() {
     const [whatsApps, setWhatsApps] = useState<any[]>([]);
     const [qrCodes, setQrCodes] = useState<Record<number, string>>({});
     const [showModal, setShowModal] = useState(false);
     const [connType, setConnType] = useState<'qr' | 'official'>('qr');
+    const [name, setName] = useState("");
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-    const user = userStr ? JSON.parse(userStr) : null;
+    // Modal de Mensagens
+    const [msgModal, setMsgModal] = useState(false);
+    const [selectedWA, setSelectedWA] = useState<any>(null);
+    const [welcomeMsg, setWelcomeMsg] = useState("");
+    const [outOfHoursMsg, setOutOfHoursMsg] = useState("");
+    const [saving, setSaving] = useState(false);
+
     const socket = useSocket();
 
     useEffect(() => { loadConnections(); }, []);
@@ -34,9 +47,7 @@ export default function ConnectionsPage() {
         if (!socket) return;
 
         socket.on("whatsapp-qr", (data: any) => {
-            console.log("Recebi QR para WA:", data.whatsappId);
             setQrCodes(prev => ({ ...prev, [data.whatsappId]: data.qr }));
-            // Forçar atualização da lista para mudar status visual se necessário
             loadConnections();
         });
 
@@ -57,17 +68,10 @@ export default function ConnectionsPage() {
         };
     }, [socket]);
 
-    const [name, setName] = useState("");
-
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
     const loadConnections = async () => {
         try {
             setErrorMsg(null);
-            const token = localStorage.getItem("token");
-            const { data } = await api.get("/whatsapp", {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const { data } = await api.get("/whatsapp");
             setWhatsApps(data);
         } catch (err: any) {
             console.error(err);
@@ -78,59 +82,70 @@ export default function ConnectionsPage() {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem("token");
-            await api.post("/whatsapp", { name, type: connType }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.post("/whatsapp", { name, type: connType });
             setShowModal(false);
             setName("");
             loadConnections();
         } catch (err: any) {
             console.error(err);
-            alert(`Erro ao criar conexão: ${err.message}`);
+            toast.error(`Erro ao criar conexão: ${err.message}`);
         }
     };
 
     const handleDelete = async (id: number) => {
         if (!confirm("Deseja realmente REMOVER esta conexão? Isso excluirá todos os dados.")) return;
         try {
-            const token = localStorage.getItem("token");
-            await api.delete(`/whatsapp/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete(`/whatsapp/${id}`);
             loadConnections();
             setQrCodes(prev => {
                 const next = { ...prev };
                 delete next[id];
                 return next;
             });
+            toast.success("Conexão removida.");
         } catch (err: any) { console.error(err); }
     };
 
     const handleLogout = async (id: number) => {
         if (!confirm("Deseja desconectar esta sessão?")) return;
         try {
-            const token = localStorage.getItem("token");
-            await api.post(`/whatsapp/${id}/logout`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.post(`/whatsapp/${id}/logout`, {});
             loadConnections();
-        } catch (err: any) {
-            console.error(err);
-        }
+            toast.success("Sessão desconectada.");
+        } catch (err: any) { console.error(err); }
     };
 
     const handleRestart = async (id: number) => {
         try {
-            const token = localStorage.getItem("token");
-            await api.post(`/whatsapp/${id}/restart`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.post(`/whatsapp/${id}/restart`, {});
             loadConnections();
-        } catch (err: any) {
-            console.error(err);
+            toast.success("Reiniciando sessão...");
+        } catch (err: any) { console.error(err); }
+    };
+
+    const openMsgModal = (wa: any) => {
+        setSelectedWA(wa);
+        setWelcomeMsg(wa.welcomeMessage || "");
+        setOutOfHoursMsg(wa.outOfHoursMessage || "");
+        setMsgModal(true);
+    };
+
+    const handleSaveMessages = async () => {
+        setSaving(true);
+        try {
+            await api.put(`/whatsapp/${selectedWA.id}/messages`, {
+                welcomeMessage: welcomeMsg,
+                outOfHoursMessage: outOfHoursMsg
+            });
+            toast.success("Mensagens atualizadas com sucesso!");
+            setMsgModal(false);
+            loadConnections();
+        } catch (error) {
+            toast.error("Erro ao salvar mensagens.");
+        } finally {
+            setSaving(false);
         }
-    }
+    };
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -140,7 +155,7 @@ export default function ConnectionsPage() {
                         <Radio className="text-[#00c9a7] animate-pulse" />
                         Connections
                     </h1>
-                    <p className="text-[#94a3b8] mt-1">Gerencie suas instâncias de WhatsApp e API Oficial.</p>
+                    <p className="text-[#94a3b8] mt-1">Gerencie suas instâncias e mensagens personalizadas.</p>
                 </div>
                 <div className="flex gap-4">
                     {errorMsg && (
@@ -161,7 +176,6 @@ export default function ConnectionsPage() {
 
                     return (
                         <div key={wa.id} className="glass group rounded-[2.5rem] border border-[#162952] p-8 relative overflow-hidden transition-all hover:border-[#00c9a7]/40 shadow-2xl">
-                            {/* Status Backdrop Glow */}
                             <div className={`absolute top-0 right-0 w-40 h-40 blur-[80px] -mr-16 -mt-16 opacity-20 ${wa.status === 'CONNECTED' ? 'bg-emerald-500' : 'bg-red-500'}`} />
 
                             <div className="flex justify-between items-start mb-8 relative z-10">
@@ -169,13 +183,8 @@ export default function ConnectionsPage() {
                                     {wa.status === 'CONNECTED' ? <Wifi className="w-7 h-7" /> : <WifiOff className="w-7 h-7" />}
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleRestart(wa.id)}
-                                        className="p-3 bg-[#162952] hover:bg-white/5 rounded-2xl text-[#94a3b8] transition-all"
-                                        title="Reiniciar Sessão"
-                                    >
-                                        <RefreshCw className="w-4 h-4" />
-                                    </button>
+                                    <button onClick={() => openMsgModal(wa)} className="p-3 bg-white/5 hover:bg-[#00c9a7]/20 rounded-2xl text-[#94a3b8] hover:text-[#00c9a7] transition-all" title="Configurar Mensagens"><MessageSquare className="w-4 h-4" /></button>
+                                    <button onClick={() => handleRestart(wa.id)} className="p-3 bg-[#162952] hover:bg-white/5 rounded-2xl text-[#94a3b8] transition-all" title="Reiniciar Sessão"><RefreshCw className="w-4 h-4" /></button>
                                     <button onClick={() => handleDelete(wa.id)} className="p-3 bg-[#162952] hover:bg-red-500/10 rounded-2xl text-[#94a3b8] hover:text-red-400 transition-all" title="Excluir"><Trash2 className="w-4 h-4" /></button>
                                     {wa.status === 'CONNECTED' && (
                                         <button onClick={() => handleLogout(wa.id)} className="p-3 bg-[#162952] hover:bg-orange-500/10 rounded-2xl text-[#94a3b8] hover:text-orange-400 transition-all" title="Desconectar"><WifiOff className="w-4 h-4" /></button>
@@ -191,7 +200,7 @@ export default function ConnectionsPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-[#0a1120]/40 border border-[#162952] rounded-3xl p-6 relative z-10 mb-8">
+                            <div className="bg-[#0a1120]/40 border border-[#162952] rounded-3xl p-6 relative z-10">
                                 {wa.status === 'CONNECTED' ? (
                                     <div className="flex items-center gap-4">
                                         <ShieldCheck className="w-10 h-10 text-[#00c9a7]" />
@@ -209,46 +218,97 @@ export default function ConnectionsPage() {
                                     </div>
                                 ) : (
                                     <div className="text-center py-6">
-                                        <p className="text-xs text-[#94a3b8]">Iniciando WhatsApp... O QR Code aparecerá em instantes.</p>
+                                        <p className="text-xs text-[#94a3b8]">Iniciando WhatsApp...</p>
                                     </div>
                                 )}
                             </div>
-
-                            <button className="w-full py-4 rounded-2xl bg-white/5 border border-white/5 text-sm font-bold text-white hover:bg-[#00c9a7] hover:text-[#0a1120] transition-all flex items-center justify-center gap-2 group">
-                                Ver Logs <ExternalLink className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                            </button>
                         </div>
                     );
                 })}
-
-                {whatsApps.length === 0 && (
-                    <div className="col-span-full py-20 text-center glass rounded-[3rem] border-2 border-dashed border-[#162952]">
-                        <div className="w-20 h-20 bg-[#0f2040] rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Radio className="w-10 h-10 text-[#1e3a6e]" />
-                        </div>
-                        <h3 className="text-xl font-display font-bold text-white">Nenhum canal conectado</h3>
-                        <p className="text-[#94a3b8] max-w-xs mx-auto mt-2">Adicione sua primeira instância para começar a interagir.</p>
-                    </div>
-                )}
             </div>
+
+            {/* Modal Mensagens */}
+            {msgModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-[#0a1120]/80">
+                    <div className="glass w-full max-w-2xl rounded-[3rem] p-10 border border-[#00c9a7]/20 shadow-2xl relative overflow-hidden">
+                        <button onClick={() => setMsgModal(false)} className="absolute top-8 right-8 text-[#94a3b8] hover:text-white transition-all"><X /></button>
+
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 rounded-2xl bg-[#00c9a7]/10 flex items-center justify-center">
+                                <MessageSquare className="text-[#00c9a7]" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-display font-bold text-white">Configurar Mensagens</h2>
+                                <p className="text-[#94a3b8] text-sm">Personalize o comportamento da conexão <span className="text-[#00c9a7] font-bold">{selectedWA?.name}</span></p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-8">
+                            {/* Boas Vindas */}
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">
+                                    <Send className="w-3 h-3 text-[#00c9a7]" /> Mensagem de Boas-vindas
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    value={welcomeMsg}
+                                    onChange={(e) => setWelcomeMsg(e.target.value)}
+                                    placeholder="Olá! 👋 Seja bem-vindo ao nosso atendimento."
+                                    className="w-full bg-[#162952]/40 border border-[#1e3a6e] rounded-[2rem] py-5 px-6 text-white text-sm focus:border-[#00c9a7] transition-all outline-none resize-none overflow-y-auto custom-scrollbar"
+                                />
+                                <p className="text-[10px] text-[#475569] px-2 italic">Enviada no primeiro contato de um cliente.</p>
+                            </div>
+
+                            {/* Fora de Horário */}
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">
+                                    <Clock className="w-3 h-3 text-orange-400" /> Mensagem Fora de Horário
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    value={outOfHoursMsg}
+                                    onChange={(e) => setOutOfHoursMsg(e.target.value)}
+                                    placeholder="Olá! 🌙 No momento estamos fechados. Retornaremos em breve."
+                                    className="w-full bg-[#162952]/40 border border-[#1e3a6e] rounded-[2rem] py-5 px-6 text-white text-sm focus:border-[#00c9a7] transition-all outline-none resize-none overflow-y-auto custom-scrollbar"
+                                />
+                                <p className="text-[10px] text-[#475569] px-2 italic">Enviada quando alguém entra em contato fora do horário de atendimento.</p>
+                            </div>
+
+                            <button
+                                onClick={handleSaveMessages}
+                                disabled={saving}
+                                className="w-full py-5 rounded-[2rem] bg-[#00c9a7] text-[#0a1628] font-black uppercase tracking-widest text-xs shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                            >
+                                <Save className="w-4 h-4" />
+                                {saving ? "Salvando..." : "Salvar Configurações"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal Novo Canal */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-[#0a1120]/80">
-                    <div className="glass w-full max-w-lg rounded-[3rem] p-10 border border-[#00c9a7]/20 shadow-[0_0_50px_rgba(0,201,167,0.1)]">
-                        <h2 className="text-2xl font-display font-bold text-white mb-2">Novo Canal</h2>
-                        <p className="text-[#94a3b8] text-sm mb-10">Escolha como deseja se conectar ao WhatsApp.</p>
+                    <div className="glass w-full max-w-lg rounded-[3rem] p-10 border border-[#00c9a7]/20">
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h2 className="text-2xl font-display font-bold text-white">Novo Canal</h2>
+                                <p className="text-[#94a3b8] text-sm">Escolha como deseja se conectar.</p>
+                            </div>
+                            <button onClick={() => setShowModal(false)} className="text-[#94a3b8] hover:text-white"><X /></button>
+                        </div>
 
                         <div className="grid grid-cols-2 gap-4 mb-10">
-                            <button onClick={() => setConnType('qr')} className={`p-6 rounded-[2rem] border transition-all text-left group ${connType === 'qr' ? 'bg-[#00c9a7]/10 border-[#00c9a7] text-[#00c9a7]' : 'bg-[#162952]/40 border-[#1e3a6e] text-[#94a3b8]'}`}>
-                                <QrCode className={`w-8 h-8 mb-4 ${connType === 'qr' ? 'text-[#00c9a7]' : 'text-[#475569]'}`} />
+                            <button onClick={() => setConnType('qr')} className={`p-6 rounded-[2rem] border transition-all text-left ${connType === 'qr' ? 'bg-[#00c9a7]/10 border-[#00c9a7] text-[#00c9a7]' : 'bg-[#162952]/40 border-[#1e3a6e] text-[#94a3b8]'}`}>
+                                <QrCode className="w-8 h-8 mb-4" />
                                 <p className="font-bold text-sm">QR Code</p>
-                                <p className="text-[10px] font-medium opacity-60">Baileys Engine (Free)</p>
+                                <p className="text-[10px] opacity-60">Baileys Engine</p>
                             </button>
-                            <button onClick={() => setConnType('official')} className={`p-6 rounded-[2rem] border transition-all text-left group ${connType === 'official' ? 'bg-[#3b82f6]/10 border-[#3b82f6] text-[#3b82f6]' : 'bg-[#162952]/40 border-[#1e3a6e] text-[#94a3b8]'}`}>
-                                <Globe className={`w-8 h-8 mb-4 ${connType === 'official' ? 'text-[#3b82f6]' : 'text-[#475569]'}`} />
+                            <button onClick={() => setConnType('official')} className={`p-6 rounded-[2rem] border transition-all text-left ${connType === 'official' ? 'bg-[#3b82f6]/10 border-[#3b82f6] text-[#3b82f6]' : 'bg-[#162952]/40 border-[#1e3a6e] text-[#94a3b8]'}`}>
+                                <Globe className="w-8 h-8 mb-4" />
                                 <p className="font-bold text-sm">Meta API</p>
-                                <p className="text-[10px] font-medium opacity-60">Official Cloud API</p>
+                                <p className="text-[10px] opacity-60">Cloud API</p>
                             </button>
                         </div>
 
@@ -260,14 +320,10 @@ export default function ConnectionsPage() {
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     placeholder="Ex: Suporte Principal"
-                                    className="w-full bg-[#162952]/40 border border-[#1e3a6e] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00c9a7] transition-all outline-none"
+                                    className="w-full bg-[#162952]/40 border border-[#1e3a6e] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00c9a7] outline-none"
                                 />
                             </div>
-
-                            <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-2xl border border-[#162952] text-[#94a3b8] font-bold text-sm hover:bg-white/5 transition-all">Cancelar</button>
-                                <button type="submit" className="flex-1 py-4 rounded-2xl bg-[#00c9a7] text-[#0a1628] font-bold text-sm shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all">Ativar Conexão</button>
-                            </div>
+                            <button type="submit" className="w-full py-4 rounded-2xl bg-[#00c9a7] text-[#0a1628] font-bold text-sm shadow-xl shadow-emerald-500/20 hover:scale-[1.02] transition-all text-center">Ativar Conexão</button>
                         </form>
                     </div>
                 </div>

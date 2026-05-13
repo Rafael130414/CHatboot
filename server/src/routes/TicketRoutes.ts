@@ -5,6 +5,7 @@ import multer from "multer";
 import path from "path";
 import { sendMessage } from "../controllers/MessageController.js";
 import fs from "fs";
+import { getIO } from "../libs/socket.js";
 
 const ticketRoutes = Router();
 
@@ -33,6 +34,21 @@ ticketRoutes.get("/", isAuth, async (req, res) => {
         where.status = status as string;
     }
 
+    // Lógica de isolamento de tickets para Agentes:
+    // 1. Tickets "pending" (Aguardando) aparecem para todos (para alguém poder puxar)
+    // 2. Tickets "open" ou "closed" só aparecem para o próprio atendente (se não for admin)
+    if (req.user.role !== "admin") {
+        if (where.status === "open" || where.status === "closed") {
+            where.userId = req.user.id;
+        } else if (!where.status || where.status === "all") {
+            // Se buscar todos, traz Pendentes de todos + Abertos/Fechados só meus
+            where.OR = [
+                { status: "pending" },
+                { userId: req.user.id }
+            ];
+        }
+    }
+
     const tickets = await prisma.ticket.findMany({
         where,
         include: {
@@ -40,7 +56,8 @@ ticketRoutes.get("/", isAuth, async (req, res) => {
             lastMessage: true,
             whatsapp: { select: { name: true } },
             tags: true,
-            department: true
+            department: true,
+            user: { select: { id: true, name: true } }
         },
         orderBy: { updatedAt: "desc" }
     });
@@ -65,7 +82,12 @@ ticketRoutes.post("/:id/accept", isAuth, async (req, res) => {
             status: "open",
             userId
         },
-        include: { contact: true, whatsapp: { select: { name: true } }, tags: true, department: true }
+        include: { contact: true, whatsapp: { select: { name: true } }, tags: true, department: true, lastMessage: true }
+    });
+
+    getIO().to(`company-${companyId}`).emit("ticket", {
+        action: "update",
+        ticket: updatedTicket
     });
 
     return res.json(updatedTicket);
@@ -85,7 +107,12 @@ ticketRoutes.post("/:id/close", isAuth, async (req, res) => {
     const updatedTicket = await prisma.ticket.update({
         where: { id: ticket.id },
         data: { status: "closed" },
-        include: { contact: true }
+        include: { contact: true, whatsapp: { select: { name: true } }, tags: true, department: true, lastMessage: true }
+    });
+
+    getIO().to(`company-${companyId}`).emit("ticket", {
+        action: "update",
+        ticket: updatedTicket
     });
 
     return res.json(updatedTicket);
@@ -108,9 +135,14 @@ ticketRoutes.post("/:id/transfer", isAuth, async (req, res) => {
         data: {
             userId: userId ? Number(userId) : ticket.userId,
             departmentId: departmentId ? Number(departmentId) : ticket.departmentId,
-            status: "pending" // Volta para pendente para o novo atendente aceitar se quiser, ou mantém aberto? Geralmente volta pra lista se mudar de dep.
+            status: "pending"
         },
-        include: { contact: true, whatsapp: { select: { name: true } }, tags: true }
+        include: { contact: true, whatsapp: { select: { name: true } }, tags: true, department: true, lastMessage: true }
+    });
+
+    getIO().to(`company-${companyId}`).emit("ticket", {
+        action: "update",
+        ticket: updatedTicket
     });
 
     return res.json(updatedTicket);
