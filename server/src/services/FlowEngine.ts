@@ -219,12 +219,13 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
 
                         await socket.sendMessage(remoteJid, {
                             audio: audioPayload,
-                            mimetype: 'audio/mpeg',
+                            mimetype: 'audio/ogg; codecs=opus',
                             ptt: true
                         });
                     } catch (err) {
                         logger.error(`[Flow] Error sending audio: ${err}`);
                     }
+
                 }
                 const edge = edges.find((e: any) => e.source === nodeId);
                 if (edge) return await executeNode(edge.target);
