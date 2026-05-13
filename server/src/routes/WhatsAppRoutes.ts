@@ -43,12 +43,17 @@ whatsappRoutes.delete("/:id", isAuth, async (req, res) => {
     if (!whatsapp) return res.status(404).json({ error: "Conexão não encontrada" });
 
     // Tenta parar a sessão se estiver ativa
-    const { getSession, sessions } = await import("../services/WhatsAppService.js");
+    const { getSession, sessions, deleteSessionFolder } = await import("../services/WhatsAppService.js");
     const session = getSession(whatsapp.id);
     if (session) {
-        await session.logout();
+        try {
+            await session.logout();
+        } catch (e) { }
         delete sessions[whatsapp.id];
     }
+
+    // Limpa arquivos físicos
+    deleteSessionFolder(whatsapp.id);
 
     await prisma.whatsApp.delete({ where: { id: whatsapp.id } });
 
@@ -65,7 +70,7 @@ whatsappRoutes.post("/:id/logout", isAuth, async (req, res) => {
 
     if (!whatsapp) return res.status(404).json({ error: "Conexão não encontrada" });
 
-    const { getSession, sessions } = await import("../services/WhatsAppService.js");
+    const { getSession, sessions, deleteSessionFolder } = await import("../services/WhatsAppService.js");
     const session = getSession(whatsapp.id);
 
     if (session) {
@@ -74,6 +79,9 @@ whatsappRoutes.post("/:id/logout", isAuth, async (req, res) => {
         } catch (e) { }
         delete sessions[whatsapp.id];
     }
+
+    // Limpa arquivos físicos no logout também para garantir novo QR no próximo login
+    deleteSessionFolder(whatsapp.id);
 
     await prisma.whatsApp.update({
         where: { id: whatsapp.id },
@@ -93,7 +101,7 @@ whatsappRoutes.post("/:id/restart", isAuth, async (req, res) => {
 
     if (!whatsapp) return res.status(404).json({ error: "Conexão não encontrada" });
 
-    const { getSession, sessions, initWhatsApp } = await import("../services/WhatsAppService.js");
+    const { getSession, sessions, initWhatsApp, deleteSessionFolder } = await import("../services/WhatsAppService.js");
     const session = getSession(whatsapp.id);
 
     if (session) {
@@ -103,6 +111,9 @@ whatsappRoutes.post("/:id/restart", isAuth, async (req, res) => {
         delete sessions[whatsapp.id];
     }
 
+    // FORÇA LIMPEZA PARA GERAR NOVO QR CODE
+    deleteSessionFolder(whatsapp.id);
+
     await prisma.whatsApp.update({
         where: { id: whatsapp.id },
         data: { status: "DISCONNECTED", qrcode: null }
@@ -110,7 +121,7 @@ whatsappRoutes.post("/:id/restart", isAuth, async (req, res) => {
 
     initWhatsApp(whatsapp.id, companyId);
 
-    return res.json({ success: true, message: "Reiniciando sessão..." });
+    return res.json({ success: true, message: "Reiniciando sessão com novo QR Code..." });
 });
 
 whatsappRoutes.get("/:id", isAuth, async (req, res) => {

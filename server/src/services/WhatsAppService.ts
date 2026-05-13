@@ -54,6 +54,18 @@ const isWithinBusinessHours = async (companyId: number): Promise<boolean> => {
 
 export const sessions: any = {};
 
+/**
+ * Deleta fisicamente a pasta de sessão para limpar credenciais antigas.
+ */
+export const deleteSessionFolder = (whatsappId: number) => {
+    const sessionName = `session-${whatsappId}`;
+    const sessionPath = path.resolve("sessions", sessionName);
+    if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        console.log(`[WA-${whatsappId}] Pasta de sessão removida com sucesso.`);
+    }
+};
+
 export const initWhatsApp = async (whatsappId: number, companyId: number) => {
     const sessionName = `session-${whatsappId}`;
     const sessionsDir = path.resolve("sessions");
