@@ -1,0 +1,28 @@
+# Node
+node_modules/
+**/node_modules/
+dist/
+.next/
+.env
+.env.local
+sessions/
+**/sessions/
+public/uploads/
+package-lock.json
+**/package-lock.json
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+.antigravity/
+.gemini/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

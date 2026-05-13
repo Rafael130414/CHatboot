@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+
+  /* Cores Extraídas da Imagem de Referência */
+  --color-bg-base: #0f172a;
+  /* Azul Escuro da Main */
+  --color-bg-sidebar: #0a1120;
+  /* Marinho Quase Preto da Sidebar */
+  --color-bg-card: #1e293b;
+  /* Cinza Azulado dos Cards */
+  --color-neon-green: #00d9a6;
+  /* Verde Neon dos Detalhes */
+  --color-border-subtle: #334155;
+  /* Divisórias */
+}
+
+:root {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Estilo Sidebar da Imagem */
+.sidebar-item-active {
+  background-color: #1e293b;
+  color: #fff;
+  border-radius: 12px;
+}
+
+.sidebar-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #00d9a6;
+  border-radius: 999px;
+  box-shadow: 0 0 10px #00d9a6;
+}
+
+/* Gráfico e Cards Glow */
+.card-premium {
+  background: #1e293b;
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.text-neon {
+  color: #00d9a6;
+}
+
+.bg-neon {
+  background-color: #00d9a6;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00d9a6;
+}

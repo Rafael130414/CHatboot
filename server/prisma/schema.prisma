@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id           Int          @id @default(autoincrement())
+  name         String
+  status       String       @default("active")
+  plan         String       @default("free")
+  apiToken     String?      @unique
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  contacts     Contact[]
+  departments  Department[]
+  flows        Flow[]
+  quickReplies QuickReply[]
+  tags         Tag[]
+  tickets      Ticket[]
+  users        User[]
+  whatsapps    WhatsApp[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  companyId Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tickets   Ticket[]
+  company   Company  @relation(fields: [companyId], references: [id])
+}
+
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String
+  color     String?
+  companyId Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id])
+  tickets   Ticket[]
+}
+
+model WhatsApp {
+  id          Int      @id @default(autoincrement())
+  name        String
+  status      String   @default("DISCONNECTED")
+  type        String   @default("qr")
+  token       String?
+  phoneNumber String?
+  companyId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  qrcode      String?
+  tickets     Ticket[]
+  company     Company  @relation(fields: [companyId], references: [id])
+}
+
+model Contact {
+  id         Int       @id @default(autoincrement())
+  name       String?
+  number     String    @unique
+  remoteJid  String    @unique
+  profilePic String?
+  companyId  Int
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  company    Company   @relation(fields: [companyId], references: [id])
+  messages   Message[]
+  tickets    Ticket[]
+}
+
+model Ticket {
+  id            Int         @id @default(autoincrement())
+  status        String      @default("pending")
+  contactId     Int
+  companyId     Int
+  whatsappId    Int?
+  userId        Int?
+  departmentId  Int?
+  lastMessageId Int?        @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  messages      Message[]
+  lastMessage   Message?    @relation("LastMessage", fields: [lastMessageId], references: [id])
+  department    Department? @relation(fields: [departmentId], references: [id])
+  user          User?       @relation(fields: [userId], references: [id])
+  whatsapp      WhatsApp?   @relation(fields: [whatsappId], references: [id])
+  company       Company     @relation(fields: [companyId], references: [id])
+  contact       Contact     @relation(fields: [contactId], references: [id])
+  tags          Tag[]       @relation("TagToTicket")
+}
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  name      String
+  color     String   @default("#00d9a6")
+  companyId Int
+  company   Company  @relation(fields: [companyId], references: [id])
+  tickets   Ticket[] @relation("TagToTicket")
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  body      String
+  fromMe    Boolean  @default(false)
+  read      Boolean  @default(false)
+  type      String   @default("chat")
+  mediaUrl  String?
+  ticketId  Int
+  contactId Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  mediaType String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  lastOf    Ticket?  @relation("LastMessage")
+}
+
+model QuickReply {
+  id        Int     @id @default(autoincrement())
+  shortcut  String
+  message   String
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+}
+
+model Flow {
+  id          Int      @id @default(autoincrement())
+  name        String
+  active      Boolean  @default(false)
+  nodes       String   @default("[]")
+  edges       String   @default("[]")
+  companyId   Int
+  whatsappId  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id])
+}

@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: chatboot-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: chatboot
+      POSTGRES_PASSWORD: chatboot_password
+      POSTGRES_DB: chatboot_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    container_name: chatboot-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: ./server
+    container_name: chatboot-api
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DATABASE_URL=postgresql://chatboot:chatboot_password@postgres:5432/chatboot_db?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=CHATBOOT_SUPER_SECRET_KEY_123456
+      - NODE_ENV=production
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./server/sessions:/app/sessions
+      - ./server/public:/app/public
+
+  web:
+    build:
+      context: ./client
+    container_name: chatboot-web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
