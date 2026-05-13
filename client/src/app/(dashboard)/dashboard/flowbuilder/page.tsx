@@ -20,6 +20,28 @@ import { toast } from "sonner";
 // ── Estilos base dos nós ──────────────────────────────
 const nBase = "rounded-3xl border shadow-[0_10px_40px_rgba(0,0,0,0.4)] text-white text-xs font-semibold min-w-[220px] transition-all duration-300 backdrop-blur-xl";
 
+// ── Estilo do Badge de Estatística ──────────────────
+const StatBadge = ({ count }: { count?: number }) => {
+    if (!count) return null;
+    return (
+        <div className="absolute -top-3 -right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full border shadow-lg animate-in zoom-in duration-300"
+            style={{
+                background: "rgba(15,23,42,0.9)",
+                borderColor: count > 100 ? "#f59e0b" : "rgba(255,255,255,0.2)",
+                boxShadow: count > 100 ? "0 0 15px rgba(245,158,11,0.3)" : "0 4px 12px rgba(0,0,0,0.5)"
+            }}>
+            <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${count > 100 ? "bg-amber-400" : "bg-emerald-400"}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${count > 100 ? "bg-amber-500" : "bg-emerald-500"}`}></span>
+            </span>
+            <span className="text-[10px] font-black text-white tabular-nums tracking-tighter">
+                {count > 999 ? `${(count / 1000).toFixed(1)}k` : count}
+            </span>
+        </div>
+    );
+};
+
+
 // ── Componentes dos Nós ───────────────────────────────
 
 const StartNode = ({ data }: NodeProps) => (
@@ -28,6 +50,7 @@ const StartNode = ({ data }: NodeProps) => (
         border: "1px solid rgba(255,255,255,0.3)",
         boxShadow: "0 10px 40px rgba(0,201,167,0.4)"
     }}>
+        <StatBadge count={(data as any)._stats} />
         <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         <Handle type="source" position={Position.Bottom} className="!bg-white !w-3.5 !h-3.5 !border-2 !border-[#00c9a7] !-bottom-1.5" />
         <div className="flex items-center gap-3">
@@ -43,10 +66,11 @@ const StartNode = ({ data }: NodeProps) => (
 );
 
 const MessageNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-5`} style={{
+    <div className={`${nBase} p-5 relative`} style={{
         background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#00c9a7" : "rgba(255,255,255,0.1)"}`,
         boxShadow: selected ? "0 0 30px rgba(0,201,167,0.3), inset 0 0 10px rgba(0,201,167,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
+        <StatBadge count={(data as any)._stats} />
         <Handle type="target" position={Position.Top} className="!bg-[#00c9a7] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #00c9a7, #0088ff)" }}>
@@ -65,11 +89,13 @@ const MessageNode = ({ data, selected }: NodeProps) => (
 );
 
 const MenuNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-5`} style={{
+    <div className={`${nBase} p-5 relative`} style={{
         background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#3b82f6" : "rgba(255,255,255,0.1)"}`,
         boxShadow: selected ? "0 0 30px rgba(59,130,246,0.3), inset 0 0 10px rgba(59,130,246,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
+        <StatBadge count={(data as any)._stats} />
         <Handle type="target" position={Position.Top} className="!bg-[#3b82f6] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
+
         <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}>
                 <GitBranch className="w-4 h-4 text-white" />
@@ -98,11 +124,12 @@ const MenuNode = ({ data, selected }: NodeProps) => (
 
 
 const TransferNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#8b5cf6" : "rgba(139,92,246,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(139,92,246,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#8b5cf6" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 40px rgba(139,92,246,0.4), inset 0 0 15px rgba(139,92,246,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-[#8b5cf6] !w-3 !h-3" />
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-[#8b5cf6] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(139,92,246,0.15)" }}>
                 <Users className="w-3.5 h-3.5 text-[#8b5cf6]" />
@@ -114,9 +141,13 @@ const TransferNode = ({ data, selected }: NodeProps) => (
     </div>
 );
 
-const EndNode = ({ data }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{ background: "rgba(10,22,40,0.95)", border: "1px solid rgba(239,68,68,0.25)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
-        <Handle type="target" position={Position.Top} className="!bg-red-500 !w-3 !h-3" />
+const EndNode = ({ data, selected }: NodeProps) => (
+    <div className={`${nBase} p-5 relative`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#ef4444" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: "0 8px 32px rgba(0,0,0,0.3)"
+    }}>
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-[#ef4444] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(239,68,68,0.15)" }}>
                 <Power className="w-3.5 h-3.5 text-red-400" />
@@ -128,11 +159,12 @@ const EndNode = ({ data }: NodeProps) => (
 );
 
 const DelayNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#06b6d4" : "rgba(6,182,212,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(6,182,212,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative overflow-hidden group`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#94a3b8" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(148,163,184,0.3)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-cyan-400 !w-3 !h-3" />
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2 mb-1.5">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(6,182,212,0.15)" }}>
                 <Clock className="w-3.5 h-3.5 text-cyan-400" />
@@ -145,11 +177,12 @@ const DelayNode = ({ data, selected }: NodeProps) => (
 );
 
 const ConditionNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#f59e0b" : "rgba(245,158,11,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(245,158,11,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#f59e0b" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(245,158,11,0.3), inset 0 0 10px rgba(245,158,11,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-amber-400 !w-3 !h-3" />
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-[#f59e0b] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2 mb-1.5">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
                 <Code className="w-3.5 h-3.5 text-amber-400" />
@@ -169,11 +202,12 @@ const ConditionNode = ({ data, selected }: NodeProps) => (
 );
 
 const SwitchNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#f59e0b" : "rgba(245,158,11,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(245,158,11,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#f59e0b" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(245,158,11,0.3), inset 0 0 10px rgba(245,158,11,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-amber-400 !w-3 !h-3" />
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-[#f59e0b] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2 mb-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
                 <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
@@ -200,11 +234,12 @@ const SwitchNode = ({ data, selected }: NodeProps) => (
 );
 
 const LoopNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#0ea5e9" : "rgba(14,165,233,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(14,165,233,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#0ea5e9" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(14,165,233,0.3), inset 0 0 10px rgba(14,165,233,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-sky-400 !w-3 !h-3" />
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-[#0ea5e9] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2 mb-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(14,165,233,0.15)" }}>
                 <Undo2 className="w-3.5 h-3.5 text-sky-400" />
@@ -222,11 +257,12 @@ const LoopNode = ({ data, selected }: NodeProps) => (
 );
 
 const AINode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-4`} style={{
-        background: "rgba(10,22,40,0.95)", border: `1px solid ${selected ? "#a855f7" : "rgba(168,85,247,0.25)"}`,
-        boxShadow: selected ? "0 0 0 2px rgba(168,85,247,0.4), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative`} style={{
+        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#a855f7" : "rgba(255,255,255,0.1)"}`,
+        boxShadow: selected ? "0 0 30px rgba(168,85,247,0.3), inset 0 0 10px rgba(168,85,247,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
     }}>
-        <Handle type="target" position={Position.Top} className="!bg-[#a855f7] !w-3 !h-3" />
+        <StatBadge count={(data as any)._stats} />
+        <Handle type="target" position={Position.Top} className="!bg-[#a855f7] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
         <div className="flex items-center gap-2 mb-1.5">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(168,85,247,0.15)" }}>
                 <BrainCircuit className="w-3.5 h-3.5 text-purple-400" />
@@ -554,13 +590,23 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
                                 value={d.body || ""} placeholder='{"chave":"{{variavel}}"}'
                                 onChange={e => onUpdate(node.id, { ...d, body: e.target.value })} />
                         </div>
-                        <div>
-                            <label style={labelStyle}>Salvar resposta em variável</label>
-                            <input style={inputStyle} value={d.saveToVar || ""} placeholder="resposta_api"
-                                onChange={e => onUpdate(node.id, { ...d, saveToVar: e.target.value })} />
-                            <p className="text-[10px] text-slate-600 mt-1.5">Use {`{{resposta_api}}`} nos próximos nós</p>
+                        <div className="flex gap-2">
+                            <div style={{ flex: 1 }}>
+                                <label style={labelStyle}>Mapear campo JSON (opcional)</label>
+                                <input style={inputStyle} value={d.jsonPath || ""} placeholder="ex: data.cliente.status"
+                                    onChange={e => onUpdate(node.id, { ...d, jsonPath: e.target.value })} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={labelStyle}>Salvar em variável</label>
+                                <input style={inputStyle} value={d.saveToVar || ""} placeholder="status_pedido"
+                                    onChange={e => onUpdate(node.id, { ...d, saveToVar: e.target.value })} />
+                            </div>
                         </div>
+                        <p className="text-[10px] text-slate-600 mt-1.5 leading-tight">
+                            Extrai um valor específico do JSON da resposta. Use <b>{`{{variavel}}`}</b> nos próximos nós.
+                        </p>
                     </>
+
                 )}
 
                 {node.type === "setVariableNode" && (
@@ -618,6 +664,7 @@ export default function FlowbuilderPage() {
     const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false);
     const [codeValue, setCodeValue] = useState("");
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const [flowStats, setFlowStats] = useState<Record<string, number>>({});
 
     // ── Simulador ───────────────────────────────────
     const [isSimulating, setIsSimulating] = useState(false);
@@ -625,6 +672,24 @@ export default function FlowbuilderPage() {
     const [simContext, setSimContext] = useState<any>({ variables: {}, name: "Simulador", phone: "55119999999" });
     const [activeSimNodeId, setActiveSimNodeId] = useState<string | null>(null);
     const [simInput, setSimInput] = useState("");
+
+    // ── Polling de Estatísticas (Analytics) ──────────
+    useEffect(() => {
+        let interval: any;
+        if (activeFlow) {
+            const fetchStats = async () => {
+                try {
+                    const { data } = await api.get(`/flows/${activeFlow.id}/stats`);
+                    setFlowStats(data);
+                } catch (err) { }
+            };
+            fetchStats();
+            interval = setInterval(fetchStats, 10000); // Polling a cada 10s
+        } else {
+            setFlowStats({});
+        }
+        return () => clearInterval(interval);
+    }, [activeFlow]);
 
     // ── Undo/Redo history ────────────────────────────
     const historyRef = useRef<{ nodes: Node[], edges: any[] }[]>([]);
@@ -1227,10 +1292,14 @@ export default function FlowbuilderPage() {
                             style={{
                                 background: "#0a1628",
                                 border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: "12px",
-                                overflow: "hidden"
+                                borderRadius: "16px",
+                                overflow: "hidden",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0px",
+                                boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
                             }}
-                            className="bg-slate-900 border-white/10 [&_button]:border-white/5 [&_button]:bg-transparent [&_svg]:fill-white"
+                            className="bg-slate-900 border-white/10 [&_button]:!bg-[#0a1628] [&_button]:!border-white/5 [&_button]:!fill-white [&_svg]:!fill-white hover:[&_button]:!bg-slate-800"
                         />
                         <MiniMap
                             className="!bg-slate-900/50 !border-white/10 !rounded-3xl !backdrop-blur-md overflow-hidden"

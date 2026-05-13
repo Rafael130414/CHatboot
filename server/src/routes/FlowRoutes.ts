@@ -22,6 +22,19 @@ flowRoutes.get("/:id", isAuth, async (req, res) => {
     return res.json(flow);
 });
 
+// Buscar estatísticas de uso por nó
+flowRoutes.get("/:id/stats", isAuth, async (req, res) => {
+    const stats = await prisma.flowNodeInteraction.findMany({
+        where: { flowId: Number(req.params.id) }
+    });
+    const formatted = stats.reduce((acc: any, curr: any) => {
+        acc[curr.nodeId] = curr.count;
+        return acc;
+    }, {});
+    return res.json(formatted);
+});
+
+
 // Criar fluxo
 flowRoutes.post("/", isAuth, async (req, res) => {
     const { name, whatsappId } = req.body;

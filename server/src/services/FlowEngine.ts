@@ -77,7 +77,16 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
         // Executa os nós recursivamente
         const executeNode = async (nodeId: string, inputMsg?: string): Promise<string | null> => {
             logger.info(`[Flow] Executing node: ${nodeId}`);
+
+            // Incrementar estatística de uso do nó
+            prisma.flowNodeInteraction.upsert({
+                where: { flowId_nodeId: { flowId: activeFlow.id, nodeId } },
+                update: { count: { increment: 1 } },
+                create: { flowId: activeFlow.id, nodeId, count: 1 }
+            }).catch(e => logger.error(`[FlowStats] Error: ${e}`));
+
             const node = nodes.find((n: any) => n.id === nodeId);
+
             if (!node) return null;
 
             // ── MENSAJE NODE ─────────────────────────────────
@@ -299,9 +308,24 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
 
                 // Salva resposta na variável se configurado
                 if (response && node.data.saveToVar) {
-                    ctx.variables[node.data.saveToVar] = response.substring(0, 1000);
+                    let finalValue = response;
+
+                    // Supone que se houver jsonPath, a resposta é JSON
+                    if (node.data.jsonPath) {
+                        try {
+                            const parsed = JSON.parse(response);
+                            // Simpe path extractor (ex: data.id)
+                            finalValue = node.data.jsonPath.split('.').reduce((o: any, i: string) => o?.[i], parsed);
+                            if (typeof finalValue === 'object') finalValue = JSON.stringify(finalValue);
+                        } catch (e) {
+                            logger.error("[Flow] Failed to parse JSON response for path mapping");
+                        }
+                    }
+
+                    ctx.variables[node.data.saveToVar] = String(finalValue).substring(0, 5000);
                     await saveContext(ticketId, ctx);
                 }
+
 
                 const edge = edges.find((e: any) => e.source === nodeId);
                 if (edge) return await executeNode(edge.target);

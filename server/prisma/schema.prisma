@@ -150,7 +150,20 @@ model Flow {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   company     Company  @relation(fields: [companyId], references: [id])
+  interactions FlowNodeInteraction[]
 }
+
+model FlowNodeInteraction {
+  id        Int      @id @default(autoincrement())
+  flowId    Int
+  nodeId    String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+  flow      Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@unique([flowId, nodeId])
+}
+
 
 model Schedule {
   id        Int      @id @default(autoincrement())
