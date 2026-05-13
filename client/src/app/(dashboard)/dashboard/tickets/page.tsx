@@ -528,9 +528,6 @@ export default function InboxPage() {
                                         Excluir Conversa
                                     </button>
                                 )}
-                                <button className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold animate-bounce">
-                                    UI ATUALIZADA ✅
-                                </button>
 
                                 <button className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-white transition-all"
                                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
