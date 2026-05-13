@@ -20,22 +20,34 @@ userRoutes.get("/", isAuth, async (req, res) => {
 });
 
 userRoutes.post("/", isAuth, async (req, res) => {
-    const { name, email, password, role } = req.body;
-    const companyId = req.user.companyId;
+    try {
+        const { name, email, password, role } = req.body;
+        const companyId = req.user.companyId;
 
-    const hashedPassword = await bcrypt.hash(password, 8);
-
-    const newUser = await prisma.user.create({
-        data: {
-            name,
-            email,
-            password: hashedPassword,
-            role: role || "agent",
-            companyId
+        // Verificar se e-mail já existe
+        const userExists = await prisma.user.findUnique({ where: { email } });
+        if (userExists) {
+            return res.status(400).json({ error: "E-mail já cadastrado" });
         }
-    });
 
-    return res.json({ id: newUser.id, name: newUser.name, email: newUser.email });
+        const hashedPassword = await bcrypt.hash(password, 8);
+
+        const newUser = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                role: role || "agent",
+                companyId
+            }
+        });
+
+        return res.json({ id: newUser.id, name: newUser.name, email: newUser.email });
+    } catch (error: any) {
+        console.error("[UserRoutes] Create Error:", error.message);
+        return res.status(500).json({ error: "Erro interno ao criar usuário. Verifique se os dados estão corretos." });
+    }
 });
+
 
 export default userRoutes;
