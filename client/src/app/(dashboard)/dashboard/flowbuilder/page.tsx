@@ -179,29 +179,47 @@ const DelayNode = ({ data, selected }: NodeProps) => (
 );
 
 const ConditionNode = ({ data, selected }: NodeProps) => (
-    <div className={`${nBase} p-5 relative`} style={{
-        background: "rgba(15,23,42,0.8)", border: `1px solid ${selected ? "#f59e0b" : "rgba(255,255,255,0.1)"}`,
-        boxShadow: selected ? "0 0 30px rgba(245,158,11,0.3), inset 0 0 10px rgba(245,158,11,0.1)" : "0 8px 32px rgba(0,0,0,0.3)"
+    <div className={`${nBase} p-5 relative overflow-visible`} style={{
+        background: "rgba(15,23,42,0.95)",
+        border: `1.5px solid ${selected ? "#f59e0b" : "rgba(245,158,11,0.2)"}`,
+        boxShadow: selected ? "0 0 40px rgba(245,158,11,0.25), inset 0 0 15px rgba(245,158,11,0.05)" : "0 10px 40px rgba(0,0,0,0.4)"
     }}>
         <StatBadge count={(data as any)._stats} />
-        <Handle type="target" position={Position.Top} className="!bg-[#f59e0b] !w-3 !h-3 !border-2 !border-slate-900 !-top-1.5" />
-        <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
-                <Code className="w-3.5 h-3.5 text-amber-400" />
+        <Handle type="target" position={Position.Top} className="!bg-[#f59e0b] !w-3.5 !h-3.5 !border-[3px] !border-[#060D1A] !-top-2" />
+
+        <div className="flex items-center gap-2.5 mb-2.5">
+            <div className="w-7 h-7 rounded-[10px] flex items-center justify-center shadow-inner" style={{ background: "rgba(245,158,11,0.15)" }}>
+                <Code className="w-4 h-4 text-amber-500" />
             </div>
-            <span className="text-amber-400">Condição (SE)</span>
+            <span className="text-[13px] font-black tracking-tight text-amber-500 uppercase">Condição (SE)</span>
         </div>
-        <p className="text-[9px] text-slate-500 font-normal truncate max-w-[160px]">
-            {(data as any).variable || "msg"} {(data as any).operator || "contém"} {(data as any).value || "valor"}
-        </p>
-        <div className="flex justify-between mt-3">
-            <span className="text-[9px] text-emerald-400 font-bold">✓ Sim</span>
-            <span className="text-[9px] text-red-400 font-bold">✗ Não</span>
+
+        <div className="px-3 py-2 rounded-xl bg-black/40 border border-white/5 mb-3">
+            <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic">
+                {(data as any).variable || "msg"}
+                <span className="text-amber-500 mx-1">{(data as any).operator || "contém"}</span>
+                {(data as any).value || "..."}
+            </p>
         </div>
-        <Handle type="source" position={Position.Bottom} id="true" style={{ left: '25%' }} className="!bg-emerald-400 !w-3 !h-3" />
-        <Handle type="source" position={Position.Bottom} id="false" style={{ left: '75%' }} className="!bg-red-400 !w-3 !h-3" />
+
+        <div className="flex justify-between items-center px-1">
+            <div className="flex items-center gap-1.5 grayscale opacity-60">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[10px] text-emerald-500 font-black uppercase tracking-tighter">Sim</span>
+            </div>
+            <div className="flex items-center gap-1.5 grayscale opacity-60">
+                <span className="text-[10px] text-red-500 font-black uppercase tracking-tighter">Não</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+            </div>
+        </div>
+
+        <Handle type="source" position={Position.Bottom} id="true" style={{ left: '30%' }}
+            className="!bg-emerald-500 !w-4 !h-4 !border-[3px] !border-[#060D1A] !-bottom-2 hover:scale-125 transition-transform" />
+        <Handle type="source" position={Position.Bottom} id="false" style={{ left: '70%' }}
+            className="!bg-red-500 !w-4 !h-4 !border-[3px] !border-[#060D1A] !-bottom-2 hover:scale-125 transition-transform" />
     </div>
 );
+
 
 const SwitchNode = ({ data, selected }: NodeProps) => (
     <div className={`${nBase} p-5 relative`} style={{
@@ -443,37 +461,69 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
                 )}
 
                 {node.type === "conditionNode" && (
-                    <>
+                    <div className="space-y-4">
                         <div>
-                            <label style={labelStyle}>Campo / Variável</label>
-                            <select style={{ ...inputStyle, cursor: "pointer" }}
-                                value={d.variable || "msg"}
-                                onChange={e => onUpdate(node.id, { ...d, variable: e.target.value })}>
-                                <option value="msg">Mensagem do Cliente</option>
-                                <option value="nome">Nome do Contato</option>
-                            </select>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1 px-2 rounded-md bg-orange-500/10 text-orange-500 text-[10px] font-bold uppercase tracking-wider">Passo 1</div>
+                                <label style={labelStyle} className="mb-0">Escolha o dado</label>
+                            </div>
+                            <input style={inputStyle} value={d.variable || "msg"}
+                                placeholder="ex: msg, nome ou {{pedido_status}}"
+                                onChange={e => onUpdate(node.id, { ...d, variable: e.target.value })} />
+                            <p className="text-[10px] text-slate-600 mt-1.5">Use <b>msg</b> para o texto que o cliente enviou.</p>
                         </div>
+
                         <div>
-                            <label style={labelStyle}>Operador</label>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1 px-2 rounded-md bg-blue-500/10 text-blue-500 text-[10px] font-bold uppercase tracking-wider">Passo 2</div>
+                                <label style={labelStyle} className="mb-0">Operador de Comparação</label>
+                            </div>
                             <select style={{ ...inputStyle, cursor: "pointer" }}
                                 value={d.operator || "contém"}
                                 onChange={e => onUpdate(node.id, { ...d, operator: e.target.value })}>
-                                <option value="contém">Contém</option>
-                                <option value="igual">É igual a</option>
-                                <option value="começa com">Começa com</option>
-                                <option value="termina com">Termina com</option>
-                                <option value="maior que">Maior que (número)</option>
-                                <option value="menor que">Menor que (número)</option>
+                                <option value="contém">Contém texto (contém)</option>
+                                <option value="igual">É exatamente igual a (==)</option>
+                                <option value="diferente">É diferente de (!=)</option>
+                                <option value="começa com">Começa com (^)</option>
+                                <option value="termina com">Termina com ($)</option>
+                                <option value="maior que">Número é maior que (&gt;)</option>
+                                <option value="menor que">Número é menor que (&lt;)</option>
+                                <option value="vazio">Está vazio / Não preenchido</option>
                             </select>
                         </div>
-                        <div>
-                            <label style={labelStyle}>Valor esperado</label>
-                            <input style={inputStyle} value={d.value || ""}
-                                onChange={e => onUpdate(node.id, { ...d, value: e.target.value })}
-                                placeholder="Digite o valor..." />
+
+                        {d.operator !== 'vazio' && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="p-1 px-2 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider">Passo 3</div>
+                                    <label style={labelStyle} className="mb-0">Valor Esperado</label>
+                                </div>
+                                <input style={inputStyle} value={d.value || ""}
+                                    onChange={e => onUpdate(node.id, { ...d, value: e.target.value })}
+                                    placeholder="Digite o valor aqui..." />
+                            </div>
+                        )}
+
+                        <div className="pt-2">
+                            <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                    <span>Caminhos de Saída</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                                        <p className="text-[10px] font-black text-emerald-500">✓ SIM</p>
+                                        <span className="text-[9px] text-emerald-500/50 leading-none">Condição OK</span>
+                                    </div>
+                                    <div className="flex-1 p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
+                                        <p className="text-[10px] font-black text-red-500">X NÃO</p>
+                                        <span className="text-[9px] text-red-500/50 leading-none">Outros casos</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </>
+                    </div>
                 )}
+
 
                 {node.type === "aiNode" && (
                     <div>
@@ -545,10 +595,13 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
                         <div className="p-4 rounded-3xl bg-slate-900/60 border border-white/5 space-y-3">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">🎙️ Gravar Áudio na Hora</label>
                             <AudioRecorder onSave={(fileName) => {
-                                const fullUrl = `${window.location.origin.replace('3000', '4000')}/public/${fileName}`;
+                                const baseUrl = api.defaults.baseURL || "";
+                                const serverUrl = baseUrl.replace('/auth', '').replace('/api', '');
+                                const fullUrl = `${serverUrl}/public/${fileName}`;
                                 onUpdate(node.id, { ...d, url: fullUrl });
-                                toast.success("Áudio gravado e link gerado!");
+                                toast.success("Áudio gravado com sucesso!");
                             }} />
+
                         </div>
 
                         <div className="flex items-center gap-2 p-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)" }}>

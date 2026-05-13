@@ -13,8 +13,11 @@ const storage = multer.diskStorage({
         if (!fs.existsSync(publicPath)) {
             fs.mkdirSync(publicPath, { recursive: true });
         }
+        // Garante permissão de escrita
+        try { fs.chmodSync(publicPath, 0o777); } catch (e) { }
         cb(null, publicPath);
     },
+
     filename: (req, file, cb) => {
         const ext = file.mimetype.split("/")[1] || "mp3";
         const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
