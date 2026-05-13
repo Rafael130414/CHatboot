@@ -759,14 +759,17 @@ export default function InboxPage() {
                     </div>
 
                     {/* End Button */}
-                    <div className="p-5" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                        <button onClick={handleClose}
-                            className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
-                            <X className="w-4 h-4" />
-                            Finalizar Atendimento
-                        </button>
-                    </div>
+                    {activeTicket.status !== 'closed' && (
+                        <div className="p-5" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                            <button onClick={handleClose}
+                                className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
+                                <X className="w-4 h-4" />
+                                Finalizar Atendimento
+                            </button>
+                        </div>
+                    )}
+
                 </div>
             )}
 
