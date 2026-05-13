@@ -248,12 +248,12 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
 
                         console.log(`[BotLogic] Ticket: ${ticket.id}, NewCycle: ${isNewInteraction}, WithinHours: ${withinHours}`);
 
-                        if (!withinHours && waConn?.outOfHoursMessage) {
+                        if (!withinHours && isNewInteraction && waConn?.outOfHoursMessage) {
                             console.log(`[BotLogic] Sending OutOfHours message to ${remoteJid}`);
                             await sleep(delay);
                             await socket.sendMessage(remoteJid, { text: waConn.outOfHoursMessage });
-                        } else {
-                            // Envia Boas-vindas apenas se for o início/reabertura do ciclo
+                        } else if (withinHours) {
+                            // Envia Boas-vindas apenas se for o início/reabertura do ciclo e estiver dentro do horário
                             if (isNewInteraction && waConn?.welcomeMessage) {
                                 console.log(`[BotLogic] Sending Welcome message to ${remoteJid}`);
                                 await sleep(delay);
