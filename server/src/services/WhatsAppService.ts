@@ -32,8 +32,9 @@ const isWithinBusinessHours = async (companyId: number): Promise<boolean> => {
     console.log(`[BusinessHours] Checking for ${todayName} at ${nowBr.getUTCHours()}:${nowBr.getUTCMinutes()} (BR Time)`);
 
     const schedule = await prisma.schedule.findFirst({
-        where: { companyId: 1, weekday: todayName, active: true }
+        where: { companyId, weekday: todayName, active: true }
     });
+
 
     if (!schedule) {
         console.log(`[BusinessHours] No active schedule found for ${todayName}`);

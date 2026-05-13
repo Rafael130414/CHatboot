@@ -8,7 +8,7 @@ const settingRoutes = Router();
 
 settingRoutes.get("/schedules", isAuth, async (req, res) => {
     const companyId = req.user.companyId;
-    console.log(`[Schedules GET] companyId: ${companyId}`);
+    console.log(`[Schedules GET] Inciando busca para empresa: ${companyId}`);
 
     try {
         let schedules = await prisma.schedule.findMany({
@@ -16,42 +16,36 @@ settingRoutes.get("/schedules", isAuth, async (req, res) => {
             orderBy: { id: "asc" }
         });
 
-        console.log(`[Schedules GET] Found ${schedules.length} for company ${companyId}`);
-
         if (schedules.length === 0) {
-            // Usar SQL raw para evitar qualquer problema de constraints do Prisma
-            const days = [
-                { name: "Segunda-feira", active: true },
-                { name: "Terca-feira", active: true },
-                { name: "Quarta-feira", active: true },
-                { name: "Quinta-feira", active: true },
-                { name: "Sexta-feira", active: true },
-                { name: "Sabado", active: false },
-                { name: "Domingo", active: false },
-            ];
-            for (const d of days) {
-                try {
-                    await prisma.$executeRawUnsafe(
-                        `INSERT INTO "Schedule" (weekday, start, "end", active, "companyId") VALUES ($1, '09:00', '18:00', $2, $3) ON CONFLICT DO NOTHING`,
-                        d.name, d.active, companyId
-                    );
-                } catch (e: any) {
-                    console.error(`[Schedules] Insert failed for ${d.name}:`, e.message);
-                }
+            console.log(`[Schedules] Criando horários padrão para a empresa ${companyId}`);
+            const weekdays = ["Segunda-feira", "Terca-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sabado", "Domingo"];
+
+            // Criação sequencial para evitar race conditions
+            for (const day of weekdays) {
+                await prisma.schedule.create({
+                    data: {
+                        weekday: day,
+                        start: "09:00",
+                        end: "18:00",
+                        active: !["Sabado", "Domingo"].includes(day),
+                        companyId
+                    }
+                });
             }
+
             schedules = await prisma.schedule.findMany({
                 where: { companyId },
                 orderBy: { id: "asc" }
             });
-            console.log(`[Schedules GET] After insert: ${schedules.length} rows`);
         }
 
         return res.json(schedules);
     } catch (err: any) {
-        console.error("[Schedules GET] Fatal:", err.message);
-        return res.status(500).json({ error: err.message });
+        console.error("[Schedules GET] Erro Fatal:", err.message);
+        return res.status(500).json({ error: "Erro ao carregar horários de atendimento." });
     }
 });
+
 
 
 settingRoutes.put("/schedules", isAuth, async (req, res) => {
