@@ -4,11 +4,14 @@ import prisma from "../libs/prisma.js";
 
 const settingRoutes = Router();
 
-// ─── Horários de Atendimento ─────────────────────────────────────────────────
+// ─── Horários de Atendimento (UNIVERSAL) ─────────────────────────────────────
 
 settingRoutes.get("/schedules", isAuth, async (req, res) => {
+    // Agora usamos sempre a empresa ID 1 como a fornecedora dos horários universais
+    const universalCompanyId = 1;
+
     let schedules = await prisma.schedule.findMany({
-        where: { companyId: req.user.companyId },
+        where: { companyId: universalCompanyId },
         orderBy: { id: "asc" }
     });
 
@@ -22,13 +25,13 @@ settingRoutes.get("/schedules", isAuth, async (req, res) => {
                         start: "09:00",
                         end: "18:00",
                         active: !["Sábado", "Domingo"].includes(day),
-                        companyId: req.user.companyId
+                        companyId: universalCompanyId
                     }
                 })
             )
         );
         schedules = await prisma.schedule.findMany({
-            where: { companyId: req.user.companyId },
+            where: { companyId: universalCompanyId },
             orderBy: { id: "asc" }
         });
     }
