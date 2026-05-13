@@ -4,10 +4,88 @@ import React, { useState, useEffect, useRef } from "react";
 import {
     MessageSquare, Send, MoreVertical, Smile, Paperclip,
     CheckCircle, Clock, Hash, Circle, FileText, Users,
-    ArrowRightLeft, Tag as TagIcon, Phone, Search, Inbox, X, Smartphone, UserCog
+    ArrowRightLeft, Tag as TagIcon, Phone, Search, Inbox, X, Smartphone, UserCog,
+    Play, Pause, Volume2
 } from "lucide-react";
 import api from "@/services/api";
 import { useSocket } from "@/hooks/useSocket";
+
+// ─── Custom Audio Player Component ──────────────────────────────────────────
+const CustomAudioPlayer = ({ src }: { src: string }) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    const togglePlay = () => {
+        if (audioRef.current) {
+            if (isPlaying) audioRef.current.pause();
+            else audioRef.current.play();
+            setIsPlaying(!isPlaying);
+        }
+    };
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            const current = audioRef.current.currentTime;
+            setCurrentTime(current);
+            setProgress((current / audioRef.current.duration) * 100);
+        }
+    };
+
+    const handleLoadedMetadata = () => {
+        if (audioRef.current) setDuration(audioRef.current.duration);
+    };
+
+    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const seekTime = (Number(e.target.value) / 100) * duration;
+        if (audioRef.current) {
+            audioRef.current.currentTime = seekTime;
+            setProgress(Number(e.target.value));
+        }
+    };
+
+    const formatTime = (time: number) => {
+        const mins = Math.floor(time / 60);
+        const secs = Math.floor(time % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    return (
+        <div className="flex items-center gap-3 p-3 rounded-2xl w-64 shadow-inner" style={{ background: "rgba(0,0,0,0.15)", border: "1px solid rgba(255,255,255,0.03)" }}>
+            <audio
+                ref={audioRef}
+                src={src}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onEnded={() => setIsPlaying(false)}
+            />
+            <button
+                onClick={togglePlay}
+                className="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-lg flex-shrink-0"
+                style={{ background: isPlaying ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #00c9a7, #0088ff)", color: isPlaying ? "#00c9a7" : "white" }}
+            >
+                {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+            </button>
+            <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                <input
+                    type="range"
+                    value={progress}
+                    onChange={handleSeek}
+                    className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-[#00c9a7]"
+                    style={{ background: `linear-gradient(to right, #00c9a7 ${progress}%, #334155 ${progress}%)` }}
+                />
+                <div className="flex justify-between items-center px-0.5">
+                    <span className="text-[10px] font-mono text-slate-400">{formatTime(currentTime)}</span>
+                    <span className="text-[10px] font-mono text-slate-500 uppercase flex items-center gap-1">
+                        <Volume2 size={8} /> {formatTime(duration)}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function InboxPage() {
     const [tickets, setTickets] = useState<any[]>([]);
@@ -461,10 +539,7 @@ export default function InboxPage() {
                                                         <img src={`${api.defaults.baseURL}/public/${m.mediaUrl}`} alt="Media" className="rounded-xl max-w-full h-auto border border-white/10" />
                                                     ) : m.mediaType?.startsWith("audio/") ? (
                                                         <div className="pt-2 pb-1">
-                                                            <audio controls className="w-full h-10 accent-emerald-500">
-                                                                <source src={`${api.defaults.baseURL}/public/${m.mediaUrl}`} type={m.mediaType} />
-                                                                Seu navegador não suporta áudio.
-                                                            </audio>
+                                                            <CustomAudioPlayer src={`${api.defaults.baseURL}/public/${m.mediaUrl}`} />
                                                         </div>
                                                     ) : m.mediaType?.startsWith("video/") ? (
                                                         <video controls className="rounded-xl max-w-full border border-white/10">
