@@ -2,7 +2,8 @@ import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
-    ConnectionState
+    ConnectionState,
+    downloadMediaMessage
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import prisma from "../libs/prisma.js";
@@ -224,6 +225,29 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         msg.message?.videoMessage ? "video" :
                             msg.message?.audioMessage ? "audio" : "chat";
 
+                    let mediaUrl = null;
+                    let mediaType = null;
+
+                    if (messageType !== "chat") {
+                        try {
+                            const buffer = await downloadMediaMessage(msg, 'buffer', {});
+                            const extension = messageType === "image" ? "jpg" : messageType === "video" ? "mp4" : "ogg";
+                            const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${extension}`;
+                            const filePath = path.resolve("public", fileName);
+
+                            if (!fs.existsSync(path.resolve("public"))) {
+                                fs.mkdirSync(path.resolve("public"), { recursive: true });
+                            }
+
+                            fs.writeFileSync(filePath, buffer as Buffer);
+                            mediaUrl = fileName; // Salvamos apenas o nome para usar com /public/ no front
+                            mediaType = msg.message?.audioMessage?.mimetype || null;
+                            console.log(`[Media] Saved ${messageType} to ${fileName}`);
+                        } catch (mediaErr) {
+                            logger.error("Error downloading media:", mediaErr);
+                        }
+                    }
+
                     const newMessage = await prisma.message.create({
                         data: {
                             body: body || (messageType !== "chat" ? `[Mídia: ${messageType}]` : ""),
@@ -231,7 +255,9 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                             contactId: contact.id,
                             ticketId: ticket.id,
                             type: messageType,
-                            read: msg.key.fromMe || false
+                            read: msg.key.fromMe || false,
+                            mediaUrl,
+                            mediaType
                         }
                     });
 

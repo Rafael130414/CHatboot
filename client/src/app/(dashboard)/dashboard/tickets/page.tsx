@@ -457,17 +457,27 @@ export default function InboxPage() {
                                             }}>
                                             {m.mediaUrl && (
                                                 <div className="mb-2">
-                                                    {m.mediaType?.startsWith("image/")
-                                                        ? <img src={`${api.defaults.baseURL}${m.mediaUrl}`} alt="Media" className="rounded-xl max-w-full h-auto border border-white/10" />
-                                                        : (
-                                                            <a href={`${api.defaults.baseURL}${m.mediaUrl}`} target="_blank"
-                                                                className="flex items-center gap-2 p-3 rounded-xl hover:bg-white/10 transition-all"
-                                                                style={{ background: "rgba(0,0,0,0.2)" }}>
-                                                                <FileText className="w-5 h-5 text-emerald-400" />
-                                                                <span className="text-xs font-semibold truncate max-w-[200px]">{m.body || 'Ver arquivo'}</span>
-                                                            </a>
-                                                        )
-                                                    }
+                                                    {m.mediaType?.startsWith("image/") ? (
+                                                        <img src={`${api.defaults.baseURL}/public/${m.mediaUrl}`} alt="Media" className="rounded-xl max-w-full h-auto border border-white/10" />
+                                                    ) : m.mediaType?.startsWith("audio/") ? (
+                                                        <div className="pt-2 pb-1">
+                                                            <audio controls className="w-full h-10 accent-emerald-500">
+                                                                <source src={`${api.defaults.baseURL}/public/${m.mediaUrl}`} type={m.mediaType} />
+                                                                Seu navegador não suporta áudio.
+                                                            </audio>
+                                                        </div>
+                                                    ) : m.mediaType?.startsWith("video/") ? (
+                                                        <video controls className="rounded-xl max-w-full border border-white/10">
+                                                            <source src={`${api.defaults.baseURL}/public/${m.mediaUrl}`} type={m.mediaType} />
+                                                        </video>
+                                                    ) : (
+                                                        <a href={`${api.defaults.baseURL}/public/${m.mediaUrl}`} target="_blank"
+                                                            className="flex items-center gap-2 p-3 rounded-xl hover:bg-white/10 transition-all"
+                                                            style={{ background: "rgba(0,0,0,0.2)" }}>
+                                                            <FileText className="w-5 h-5 text-emerald-400" />
+                                                            <span className="text-xs font-semibold truncate max-w-[200px]">{m.body || 'Ver arquivo'}</span>
+                                                        </a>
+                                                    )}
                                                 </div>
                                             )}
                                             {(!m.mediaUrl || m.body !== m.mediaUrl) && <p>{m.body}</p>}
