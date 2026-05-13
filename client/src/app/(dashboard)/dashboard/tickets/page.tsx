@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
     MessageSquare, Send, MoreVertical, Smile, Paperclip,
     CheckCircle, Clock, Hash, Circle, FileText, Users,
-    ArrowRightLeft, Tag as TagIcon, Phone, Search, Inbox, X, Smartphone
+    ArrowRightLeft, Tag as TagIcon, Phone, Search, Inbox, X, Smartphone, UserCog
 } from "lucide-react";
 import api from "@/services/api";
 import { useSocket } from "@/hooks/useSocket";
@@ -20,6 +20,8 @@ export default function InboxPage() {
     const [availableDepartments, setAvailableDepartments] = useState<any[]>([]);
     const [counts, setCounts] = useState({ pending: 0, open: 0 });
     const [searchQuery, setSearchQuery] = useState("");
+    const [isEditingContact, setIsEditingContact] = useState(false);
+    const [editContactForm, setEditContactForm] = useState({ name: "", number: "" });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -158,12 +160,25 @@ export default function InboxPage() {
 
     const selectTicket = async (ticket: any) => {
         setActiveTicket(ticket);
+        setEditContactForm({ name: ticket.contact.name || "", number: ticket.contact.number || "" });
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
             const { data } = await api.get(`/tickets/${ticket.id}`, { headers: { Authorization: `Bearer ${token}` } });
             setMessages(data.messages);
         } catch (err) { } finally { setLoading(false); }
+    };
+
+    const handleUpdateContact = async () => {
+        if (!activeTicket) return;
+        try {
+            const token = localStorage.getItem("token");
+            const { data } = await api.put(`/contacts/${activeTicket.contact.id}`, editContactForm, { headers: { Authorization: `Bearer ${token}` } });
+            // Atualiza o ticket ativo localmente
+            setActiveTicket({ ...activeTicket, contact: data });
+            loadTickets();
+            setIsEditingContact(false);
+        } catch (err) { }
     };
 
     const filteredTickets = tickets.filter(t =>
@@ -527,7 +542,14 @@ export default function InboxPage() {
             {activeTicket && (
                 <div className="w-72 flex-shrink-0 flex flex-col overflow-y-auto" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)", background: "rgba(10,22,40,0.6)", backdropFilter: "blur(20px)", scrollbarWidth: "thin", scrollbarColor: "rgba(0,201,167,0.1) transparent" }}>
                     {/* Client card */}
-                    <div className="p-6 text-center" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="p-6 text-center relative group/card" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <button
+                            onClick={() => setIsEditingContact(true)}
+                            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800/80 text-emerald-400 opacity-0 group-hover/card:opacity-100 transition-all flex items-center justify-center hover:bg-[#00c9a7] hover:text-white"
+                        >
+                            <UserCog size={14} />
+                        </button>
+
                         <div className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center font-bold text-2xl overflow-hidden"
                             style={{ background: "linear-gradient(135deg,rgba(0,201,167,0.15),rgba(0,136,255,0.1))", border: "1px solid rgba(0,201,167,0.2)", color: "#00c9a7" }}>
                             {activeTicket.contact.profilePic
@@ -535,8 +557,15 @@ export default function InboxPage() {
                                 : getInitials(activeTicket.contact.name)
                             }
                         </div>
-                        <h3 className="text-sm font-bold text-white leading-tight">{activeTicket.contact.name || "Cliente"}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">{activeTicket.contact.number}</p>
+                        <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-bold text-white leading-tight">{activeTicket.contact.name || "Cliente"}</h3>
+                                <button onClick={() => setIsEditingContact(true)} className="text-slate-600 hover:text-emerald-400 transition-colors">
+                                    <UserCog size={12} />
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-500 font-mono tracking-tighter">{activeTicket.contact.number}</p>
+                        </div>
                     </div>
 
                     <div className="flex-1 p-5 space-y-6">
@@ -619,6 +648,44 @@ export default function InboxPage() {
                             <X className="w-4 h-4" />
                             Finalizar Atendimento
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Editar Contato */}
+            {isEditingContact && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border" style={{ background: "rgba(10,22,40,0.95)", borderColor: "rgba(255,255,255,0.1)" }}>
+                        <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-white">Editar Perfil do Cliente</h3>
+                            <button onClick={() => setIsEditingContact(false)} className="text-slate-500 hover:text-white"><X size={18} /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Nome</label>
+                                <input
+                                    value={editContactForm.name}
+                                    onChange={e => setEditContactForm({ ...editContactForm, name: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                                    placeholder="Nome do cliente"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Número / ID</label>
+                                <input
+                                    value={editContactForm.number}
+                                    onChange={e => setEditContactForm({ ...editContactForm, number: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                                    placeholder="55..."
+                                />
+                            </div>
+                            <button
+                                onClick={handleUpdateContact}
+                                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all"
+                            >
+                                Salvar Alterações
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
