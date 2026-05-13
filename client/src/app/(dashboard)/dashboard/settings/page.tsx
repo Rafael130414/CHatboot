@@ -18,7 +18,16 @@ interface BotSettings {
     antiBanDelay: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const getApiUrl = () => {
+    if (typeof window !== "undefined") {
+        return `${window.location.protocol}//${window.location.hostname}:4000`;
+    }
+    return "http://37.148.134.48:4000";
+};
+
+const API_URL = getApiUrl();
+
+
 
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState("Geral");
