@@ -25,17 +25,42 @@ const storage = multer.diskStorage({
     }
 });
 
+import ffmpeg from "fluent-ffmpeg";
+
 const upload = multer({ storage });
 
-// Rota de Upload
-mediaRoutes.post("/upload", isAuth, upload.single("file"), (req, res) => {
+// Rota de Upload com Transcoder para OGG/OPUS (Padrão WhatsApp Mensagem de Voz)
+mediaRoutes.post("/upload", isAuth, upload.single("file"), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: "Nenhum arquivo enviado" });
     }
 
-    // Retorna a URL relativa da mídia (que o FlowEngine resolverá via servidor)
-    // Usamos o IP ou domínio da VPS no front. Para o DB, salvamos apenas o nome do arquivo.
-    return res.json({ fileName: req.file.filename });
+    const inputPath = req.file.path;
+    const outputFileName = `${path.parse(req.file.filename).name}.ogg`;
+    const outputPath = path.join(path.resolve("public"), outputFileName);
+
+    try {
+        // Converte para OGG/OPUS (LibOpus)
+        await new Promise((resolve, reject) => {
+            ffmpeg(inputPath)
+                .toFormat('ogg')
+                .audioCodec('libopus')
+                .on('end', resolve)
+                .on('error', reject)
+                .save(outputPath);
+        });
+
+        // Remove o arquivo original (mp3/webm) após converter
+        fs.unlinkSync(inputPath);
+
+        // Retorna o nome do novo arquivo .ogg
+        return res.json({ fileName: outputFileName });
+    } catch (err) {
+        console.error("[Media] Transcode error:", err);
+        // Se falhar a conversão, retorna o original mesmo para não quebrar o fluxo
+        return res.json({ fileName: req.file.filename });
+    }
 });
+
 
 export default mediaRoutes;
