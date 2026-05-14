@@ -8,6 +8,9 @@ const contactRoutes = Router();
 contactRoutes.get("/", isAuth, async (req, res) => {
     const contacts = await prisma.contact.findMany({
         where: { companyId: req.user.companyId },
+        include: {
+            whatsApp: { select: { name: true } }
+        },
         orderBy: { name: 'asc' }
     });
     return res.json(contacts);

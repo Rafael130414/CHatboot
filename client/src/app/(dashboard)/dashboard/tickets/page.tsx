@@ -5,10 +5,11 @@ import {
     MessageSquare, Send, MoreVertical, Smile, Paperclip,
     CheckCircle, Clock, Hash, Circle, FileText, Users,
     ArrowRightLeft, Tag as TagIcon, Phone, Search, Inbox, X, Smartphone, UserCog,
-    Play, Pause, Volume2, Trash2
+    Play, Pause, Volume2, Trash2, Plus, Check, ArrowRight
 } from "lucide-react";
 import api from "@/services/api";
 import { useSocket } from "@/hooks/useSocket";
+import { useSearchParams } from "next/navigation";
 
 // ─── Custom Audio Player Component ──────────────────────────────────────────
 const CustomAudioPlayer = ({ src }: { src: string }) => {
@@ -100,11 +101,16 @@ export default function InboxPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isEditingContact, setIsEditingContact] = useState(false);
     const [editContactForm, setEditContactForm] = useState({ name: "", number: "" });
+    const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
+    const [searchContactQuery, setSearchContactQuery] = useState("");
+    const [allContacts, setAllContacts] = useState<any[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const audioNotificationRef = useRef<HTMLAudioElement | null>(null);
     const socket = useSocket();
+    const searchParams = useSearchParams();
+    const contactIdParam = searchParams.get("contactId");
 
     useEffect(() => {
         // Inicializa áudio (Som estilo Pop/Bubble - mais moderno)
@@ -113,6 +119,12 @@ export default function InboxPage() {
             Notification.requestPermission();
         }
     }, []);
+
+    useEffect(() => {
+        if (contactIdParam) {
+            handleCreateTicket(Number(contactIdParam));
+        }
+    }, [contactIdParam]);
 
 
 
@@ -133,7 +145,7 @@ export default function InboxPage() {
 
     const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
-    useEffect(() => { loadTickets(); loadTags(); loadCounts(); loadDepartments(); }, [statusFilter]);
+    useEffect(() => { loadTickets(); loadTags(); loadCounts(); loadDepartments(); loadAllContacts(); }, [statusFilter]);
     useEffect(() => { scrollToBottom(); }, [messages]);
 
     useEffect(() => {
@@ -210,6 +222,28 @@ export default function InboxPage() {
             const { data } = await api.get("/tags", { headers: { Authorization: `Bearer ${token}` } });
             setAvailableTags(data);
         } catch (err) { }
+    };
+
+    const loadAllContacts = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const { data } = await api.get("/contacts", { headers: { Authorization: `Bearer ${token}` } });
+            setAllContacts(data);
+        } catch (err) { }
+    };
+
+    const handleCreateTicket = async (contactId: number) => {
+        try {
+            const token = localStorage.getItem("token");
+            const { data } = await api.post("/tickets", { contactId }, { headers: { Authorization: `Bearer ${token}` } });
+            setIsNewTicketModalOpen(false);
+            setSearchContactQuery("");
+            setStatusFilter("pending"); // Muda para pendente para garantir que apareça na lista se for novo
+            selectTicket(data);
+            loadCounts();
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Erro ao criar atendimento.");
+        }
     };
 
     const handleAccept = async () => {
@@ -346,10 +380,13 @@ export default function InboxPage() {
                             </div>
                             <h2 className="text-base font-bold text-white">Atendimentos</h2>
                         </div>
-                        <div className="flex gap-1">
-                            {counts.pending > 0 && <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-black">{counts.pending}</span>}
-                            {counts.open > 0 && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-black">{counts.open}</span>}
-                        </div>
+                        <button
+                            onClick={() => setIsNewTicketModalOpen(true)}
+                            className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center hover:bg-emerald-500 hover:text-slate-950 transition-all shadow-lg shadow-emerald-500/5 group"
+                            title="Novo Atendimento"
+                        >
+                            <Plus className="w-4 h-4 group-hover:scale-125 transition-transform" />
+                        </button>
                     </div>
 
                     {/* Search */}
@@ -836,6 +873,58 @@ export default function InboxPage() {
                             >
                                 Salvar Alterações
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ── Modal Novo Atendimento ── */}
+            {isNewTicketModalOpen && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6" style={{ background: "rgba(6,13,26,0.8)", backdropFilter: "blur(12px)" }}>
+                    <div className="w-full max-w-lg bg-[#0f172a] rounded-[2.5rem] border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Novo Atendimento</h3>
+                                <p className="text-xs text-slate-500">Selecione um contato para iniciar</p>
+                            </div>
+                            <button onClick={() => setIsNewTicketModalOpen(false)} className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-all">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 border-b border-white/5 bg-black/20">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                                <input
+                                    autoFocus
+                                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 transition-all"
+                                    placeholder="Nome ou número do cliente..."
+                                    value={searchContactQuery}
+                                    onChange={(e) => setSearchContactQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto max-h-[400px] p-4 space-y-2" style={{ scrollbarWidth: 'thin' }}>
+                            {allContacts
+                                .filter(c => !searchContactQuery || c.name?.toLowerCase().includes(searchContactQuery.toLowerCase()) || c.number.includes(searchContactQuery))
+                                .map(contact => (
+                                    <div
+                                        key={contact.id}
+                                        onClick={() => handleCreateTicket(contact.id)}
+                                        className="flex items-center gap-4 p-4 rounded-2xl hover:bg-emerald-500/5 border border-transparent hover:border-emerald-500/20 cursor-pointer transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center font-bold text-emerald-400 border border-white/5 group-hover:from-emerald-500 group-hover:to-emerald-600 group-hover:text-white transition-all">
+                                            {getInitials(contact.name)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{contact.name || "Sem Nome"}</p>
+                                            <p className="text-xs text-slate-500 font-mono tracking-tighter">{contact.number}</p>
+                                        </div>
+                                        <ArrowRight className="w-4 h-4 text-slate-700 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                ))
+                            }
+                            {allContacts.length === 0 && <p className="text-center py-10 text-slate-600 text-xs">Nenhum contato encontrado.</p>}
                         </div>
                     </div>
                 </div>

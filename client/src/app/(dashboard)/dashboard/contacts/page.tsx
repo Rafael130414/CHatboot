@@ -13,28 +13,52 @@ import {
     Smartphone,
     Edit2,
     X,
-    Save
+    Save,
+    ArrowRight
 } from "lucide-react";
 import api from "@/services/api";
+import { useRouter } from "next/navigation";
 
 export default function ContactsPage() {
+    const router = useRouter();
     const [contacts, setContacts] = useState<any[]>([]);
+    const [connections, setConnections] = useState<any[]>([]);
     const [search, setSearch] = useState("");
+    const [selectedConnection, setSelectedConnection] = useState<string>("all");
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedContact, setSelectedContact] = useState<any>(null);
     const [editName, setEditName] = useState("");
     const [editNumber, setEditNumber] = useState("");
+    const [loading, setLoading] = useState(true);
 
-    useEffect(() => { loadContacts(); }, []);
+    useEffect(() => {
+        loadContacts();
+        loadConnections();
+    }, []);
+
+    const loadConnections = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const { data } = await api.get("/whatsapp", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setConnections(data);
+        } catch (err) { console.error(err); }
+    };
 
     const loadContacts = async () => {
+        setLoading(true);
         try {
             const token = localStorage.getItem("token");
             const { data } = await api.get("/contacts", {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setContacts(data);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleEdit = (contact: any) => {
@@ -62,10 +86,11 @@ export default function ContactsPage() {
         }
     };
 
-    const filtered = contacts.filter(c =>
-        (c.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-        c.number?.includes(search)
-    );
+    const filtered = contacts.filter(c => {
+        const matchesSearch = (c.name?.toLowerCase() || "").includes(search.toLowerCase()) || c.number?.includes(search);
+        const matchesConnection = selectedConnection === "all" || c.whatsappId === Number(selectedConnection);
+        return matchesSearch && matchesConnection;
+    });
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -94,53 +119,96 @@ export default function ContactsPage() {
                 />
             </div>
 
+            {/* Filtros de Conexão */}
+            <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto scrollbar-hide">
+                <button
+                    onClick={() => setSelectedConnection("all")}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${selectedConnection === "all"
+                        ? 'bg-emerald-500 text-[#0a1628] border-emerald-500 shadow-lg shadow-emerald-500/20'
+                        : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                        }`}
+                >
+                    Todos
+                </button>
+                {connections.map(conn => (
+                    <button
+                        key={conn.id}
+                        onClick={() => setSelectedConnection(conn.id.toString())}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${selectedConnection === conn.id.toString()
+                            ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20'
+                            : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                            }`}
+                    >
+                        {conn.name}
+                    </button>
+                ))}
+            </div>
+
             {/* Grid de Contatos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filtered.map((c) => (
-                    <div key={c.id} className="glass group rounded-3xl border border-[#162952] p-6 hover:border-[#00c9a7]/40 transition-all relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-20 h-20 bg-[#00c9a7]/5 blur-2xl -mr-10 -mt-10 group-hover:bg-[#00c9a7]/10 transition-colors" />
+            {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="glass rounded-3xl border border-white/5 p-6 h-64 animate-pulse bg-white/5" />
+                    ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filtered.map((c) => (
+                        <div key={c.id} className="glass group rounded-3xl border border-[#162952] p-6 hover:border-[#00c9a7]/40 transition-all relative overflow-hidden group/card">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#00c9a7]/10 to-transparent blur-2xl -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
 
-                        <div className="flex justify-between items-start mb-6 relative z-10">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0f2040] to-[#162952] border border-[#1e3a6e] flex items-center justify-center text-2xl font-display font-bold text-[#00c9a7] shadow-inner">
-                                {c.name?.[0]?.toUpperCase() || <UserCircle className="w-8 h-8 opacity-20" />}
-                            </div>
-                            <button
-                                onClick={() => handleEdit(c)}
-                                className="p-3 bg-[#162952] hover:bg-[#00c9a7]/20 rounded-2xl text-[#94a3b8] hover:text-[#00c9a7] transition-all"
-                            >
-                                <Edit2 className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4 relative z-10">
-                            <div>
-                                <h3 className="text-base font-display font-bold text-white truncate">{c.name || "Sem Nome"}</h3>
-                                <div className="flex items-center gap-1.5 text-[#94a3b8] group-hover:text-[#00c9a7] transition-colors">
-                                    <Smartphone className="w-3 h-3" />
-                                    <span className="text-[11px] font-bold tracking-wider">{c.number}</span>
+                            <div className="flex justify-between items-start mb-6 relative z-10">
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0f2040] to-[#162952] border border-[#1e3a6e] flex items-center justify-center text-xl font-black text-[#00c9a7] shadow-inner group-hover:scale-110 transition-transform shadow-emerald-500/10">
+                                    {c.name?.[0]?.toUpperCase() || <UserCircle className="w-8 h-8 opacity-20" />}
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => handleEdit(c)}
+                                        className="w-10 h-10 bg-[#162952] hover:bg-emerald-500 hover:text-white rounded-xl text-[#94a3b8] transition-all flex items-center justify-center shadow-lg"
+                                    >
+                                        <Edit2 className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2 pt-2 border-t border-[#162952]">
-                                <span className="flex items-center gap-1 bg-[#162952] text-[#94a3b8] px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider">
-                                    <Tag className="w-2.5 h-2.5" /> WhatsApp
-                                </span>
+                            <div className="space-y-4 relative z-10">
+                                <div className="min-h-[48px]">
+                                    <h3 className="text-base font-black text-white truncate tracking-tight">{c.name || "Cliente sem Nome"}</h3>
+                                    <div className="flex items-center gap-1.5 text-slate-500 mt-0.5">
+                                        <Smartphone className="w-3 h-3 text-emerald-500/50" />
+                                        <span className="text-[11px] font-mono font-bold tracking-tighter">{c.number}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 pt-3 border-t border-white/5">
+                                    <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                                        {c.whatsApp?.name || "Geral"}
+                                    </span>
+                                </div>
+
+                                <button
+                                    onClick={() => router.push(`/dashboard/tickets?contactId=${c.id}`)}
+                                    className="w-full bg-[#162952]/40 hover:bg-gradient-to-r hover:from-emerald-500 hover:to-blue-500 hover:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-[#00c9a7] transition-all flex items-center justify-center gap-3 border border-white/5 shadow-inner group/btn active:scale-95"
+                                >
+                                    <MessageSquare className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" /> Iniciar Chat
+                                </button>
                             </div>
-
-                            <button className="w-full bg-[#162952]/40 hover:bg-[#00c9a7] hover:text-[#0a1628] py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest text-[#00c9a7] transition-all flex items-center justify-center gap-2">
-                                <MessageSquare className="w-3.5 h-3.5" /> Mensagem
-                            </button>
                         </div>
-                    </div>
-                ))}
+                    ))}
 
-                {filtered.length === 0 && (
-                    <div className="col-span-full py-20 text-center glass rounded-3xl border-2 border-dashed border-[#162952]">
-                        <Users className="w-12 h-12 text-[#1e3a6e] mx-auto mb-4" />
-                        <p className="text-sm font-bold text-[#475569]">Nenhum contato encontrado.</p>
-                    </div>
-                )}
-            </div>
+                    {filtered.length === 0 && (
+                        <div className="col-span-full py-24 text-center glass rounded-[3rem] border-2 border-dashed border-[#162952] bg-white/[0.02]">
+                            <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                                <Users className="w-10 h-10 text-slate-700" />
+                            </div>
+                            <p className="text-lg font-black text-white tracking-tight">Nenhum contato encontrado</p>
+                            <p className="text-sm text-slate-500 mt-1">Tente ajustar seus filtros ou busca.</p>
+                        </div>
+                    )}
+                </div>
+            )
+            }
 
             {/* Modal de Edição Premium */}
             {showEditModal && (

@@ -169,7 +169,8 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                                 remoteJid,
                                 number: cleanNumber,
                                 name: contactName || cleanNumber,
-                                companyId
+                                companyId,
+                                whatsappId // Vincula à conexão atual
                             }
                         });
 
@@ -177,12 +178,18 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         socket.profilePictureUrl(remoteJid, 'image').then(ppUrl => {
                             prisma.contact.update({ where: { id: contact!.id }, data: { profilePic: ppUrl } }).catch(() => { });
                         }).catch(() => { });
-                    } else if (contactName && contact.name !== contactName) {
-                        // Se o nome capturado for diferente do que temos no banco, atualizamos para o nome real do cliente
-                        console.log(`[BotLogic] Updating contact name from "${contact.name}" to "${contactName}"`);
+                    } else {
+                        // Sempre atualiza o whatsappId para saber de qual conexão veio a última interação
+                        // E atualiza o nome se o pushName for diferente
+                        const updateData: any = { whatsappId };
+                        if (contactName && contact.name !== contactName) {
+                            console.log(`[BotLogic] Updating contact name from "${contact.name}" to "${contactName}"`);
+                            updateData.name = contactName;
+                        }
+
                         contact = await prisma.contact.update({
                             where: { id: contact.id },
-                            data: { name: contactName }
+                            data: updateData
                         });
                     }
 

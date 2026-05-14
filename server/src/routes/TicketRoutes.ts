@@ -25,6 +25,62 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Criar Novo Ticket Manualmente (Novo Atendimento)
+ticketRoutes.post("/", isAuth, async (req, res) => {
+    const { contactId, whatsappId } = req.body;
+    const companyId = req.user.companyId;
+
+    try {
+        // Verifica se já existe um ticket aberto ou pendente para este contato nesta conexão
+        const existingTicket = await prisma.ticket.findFirst({
+            where: {
+                contactId: Number(contactId),
+                companyId,
+                status: { in: ["pending", "open"] }
+            },
+            include: { contact: true }
+        });
+
+        if (existingTicket) {
+            return res.json(existingTicket);
+        }
+
+        // Busca conexão padrão se não informada
+        let wId = whatsappId;
+        if (!wId) {
+            const firstWhatsapp = await prisma.whatsApp.findFirst({ where: { companyId, status: "CONNECTED" } });
+            wId = firstWhatsapp?.id;
+        }
+
+        if (!wId) return res.status(400).json({ error: "Nenhuma conexão WhatsApp ativa encontrada." });
+
+        const ticket = await prisma.ticket.create({
+            data: {
+                contactId: Number(contactId),
+                companyId,
+                whatsappId: Number(wId),
+                status: "pending"
+            },
+            include: {
+                contact: true,
+                whatsapp: { select: { name: true } },
+                tags: true,
+                department: true,
+                lastMessage: true
+            }
+        });
+
+        getIO().to(`company-${companyId}`).emit("ticket", {
+            action: "update",
+            ticket
+        });
+
+        return res.json(ticket);
+    } catch (err) {
+        return res.status(500).json({ error: "Erro ao criar atendimento manual" });
+    }
+});
+
 // Listar tickets da empresa (filtrando por status)
 ticketRoutes.get("/", isAuth, async (req, res) => {
     const { status } = req.query;
