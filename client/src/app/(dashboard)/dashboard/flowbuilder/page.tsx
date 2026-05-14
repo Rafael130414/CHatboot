@@ -46,24 +46,30 @@ const StatBadge = ({ count }: { count?: number }) => {
 
 // ── Componentes dos Nós ───────────────────────────────
 
-const StartNode = ({ data }: NodeProps) => (
-    <div className={`${nBase} p-5 overflow-hidden relative group`} style={{
-        background: "linear-gradient(135deg, rgba(0,201,167,0.8), rgba(0,136,255,0.8))",
-        border: "1px solid rgba(255,255,255,0.3)",
-        boxShadow: "0 10px 40px rgba(0,201,167,0.4)"
+const StartNode = ({ selected }: NodeProps) => (
+    <div className={`${nBase} p-6 relative overflow-visible`} style={{
+        background: "linear-gradient(145deg, rgba(30,41,59,0.95), rgba(15,23,42,1))",
+        border: `2px solid ${selected ? "#8b5cf6" : "rgba(139,92,246,0.3)"}`,
+        boxShadow: selected
+            ? "0 0 50px rgba(139,92,246,0.4), inset 0 0 20px rgba(139,92,246,0.1)"
+            : "0 10px 40px rgba(0,0,0,0.5), 0 0 20px rgba(139,92,246,0.1)",
+        borderRadius: '24px'
     }}>
-        <StatBadge count={(data as any)._stats} />
-        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-        <Handle type="source" position={Position.Bottom} className="!bg-white !w-3.5 !h-3.5 !border-2 !border-[#00c9a7] !-bottom-1.5" />
-        <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
-                <Zap className="w-5 h-5 text-white animate-pulse" />
+        <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)" }}>
+                <Zap className="w-6 h-6 text-white animate-pulse" />
+                <div className="absolute inset-0 rounded-2xl animate-ping opacity-20 bg-white" />
             </div>
             <div>
-                <span className="font-black text-sm tracking-tight uppercase">Início do Fluxo</span>
-                <p className="text-[10px] font-medium text-white/70">Ponto de entrada</p>
+                <span className="font-black text-sm tracking-tight uppercase text-white">Início do Fluxo</span>
+                <p className="text-[10px] font-bold text-[#d946ef] uppercase tracking-widest opacity-80">Trigger Principal</p>
             </div>
         </div>
+
+        {/* Handle de Saída maior e centralizado */}
+        <Handle type="source" position={Position.Bottom}
+            className="!bg-[#d946ef] !w-5 !h-5 !border-[4px] !border-[#060D1A] !-bottom-2.5 hover:scale-125 transition-transform" />
     </div>
 );
 
@@ -1112,8 +1118,25 @@ export default function FlowbuilderPage() {
     const loadWhatsapps = async () => { try { const { data } = await api.get("/whatsapp", { headers }); setWhatsapps(data); } catch (e) { } };
 
     const openFlow = (flow: any) => {
-        setActiveFlow(flow); setNodes(JSON.parse(flow.nodes || "[]"));
-        setEdges(JSON.parse(flow.edges || "[]")); setSelectedNode(null); setActiveWhatsappId(flow.whatsappId || "");
+        const loadedNodes = JSON.parse(flow.nodes || "[]");
+        const loadedEdges = JSON.parse(flow.edges || "[]").map((edge: any) => {
+            const sourceNode = loadedNodes.find((n: any) => n.id === edge.source);
+            return {
+                ...edge,
+                animated: true,
+                style: {
+                    stroke: getNodeColor(sourceNode?.type),
+                    strokeWidth: 2,
+                    opacity: 0.8
+                }
+            };
+        });
+
+        setActiveFlow(flow);
+        setNodes(loadedNodes);
+        setEdges(loadedEdges);
+        setSelectedNode(null);
+        setActiveWhatsappId(flow.whatsappId || "");
     };
 
     const createFlow = async () => {
@@ -1148,8 +1171,41 @@ export default function FlowbuilderPage() {
         if (activeFlow?.id === id) { setActiveFlow(null); setNodes([]); setEdges([]); }
     };
 
+    // ── Mapeamento Centralizado de Cores ────────────
+    const getNodeColor = (type: string) => {
+        const colors: Record<string, string> = {
+            startNode: "#d946ef",
+            messageNode: "#00c9a7",
+            menuNode: "#3b82f6",
+            transferNode: "#8b5cf6",
+            endNode: "#ef4444",
+            imageNode: "#ec4899",
+            audioNode: "#f97316",
+            documentNode: "#64748b",
+            conditionNode: "#f59e0b",
+            switchNode: "#f59e0b",
+            loopNode: "#0ea5e9",
+            delayNode: "#06b6d4",
+            setVariableNode: "#eab308",
+            aiNode: "#a855f7",
+            httpNode: "#06b6d4",
+            tagNode: "#10b981",
+        };
+        return colors[type || ""] || "#00c9a7";
+    };
+
     const onConnect = useCallback((params: Connection) => {
-        const newEdges = addEdge({ ...params, id: `edge-${Date.now()}`, animated: true, type: "smoothstep", style: { stroke: "#00c9a7", strokeWidth: 1.5 } }, edges);
+        const sourceNode = nodes.find(n => n.id === params.source);
+        const color = getNodeColor(sourceNode?.type || "messageNode");
+
+        const newEdges = addEdge({
+            ...params,
+            id: `edge-${Date.now()}`,
+            animated: true,
+            type: "smoothstep",
+            style: { stroke: color, strokeWidth: 2, opacity: 0.8 },
+            labelStyle: { fill: '#fff', fontWeight: 700 }
+        }, edges);
         setEdges(newEdges);
         pushHistory(nodes, newEdges);
     }, [setEdges, nodes, edges, pushHistory]);
