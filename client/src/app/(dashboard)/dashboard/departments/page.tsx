@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import {
-    Layers,
     Plus,
     Trash2,
     Edit3,

@@ -10,10 +10,15 @@ import {
     MoreVertical,
     Trash2,
     CheckCircle,
-    CheckCircle,
     UserPlus,
     Hash,
-    Layers
+    Layers,
+    Edit3,
+    Palette,
+    MessageSquare,
+    Clock,
+    AlertCircle,
+    X
 } from "lucide-react";
 import api from "@/services/api";
 
