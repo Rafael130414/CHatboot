@@ -12,6 +12,7 @@ import contactRoutes from "./routes/ContactRoutes.js";
 import flowRoutes from "./routes/FlowRoutes.js";
 import settingRoutes from "./routes/SettingRoutes.js";
 import mediaRoutes from "./routes/MediaRoutes.js";
+import dashboardRoutes from "./routes/DashboardRoutes.js";
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use("/contacts", contactRoutes);
 app.use("/flows", flowRoutes);
 app.use("/settings", settingRoutes);
 app.use("/media", mediaRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 
 app.get("/", (req, res) => {
