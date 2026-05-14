@@ -10,6 +10,7 @@ import Logo from "@/components/Logo";
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [remember, setRemember] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const router = useRouter();
@@ -20,7 +21,7 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const { data } = await api.post("/auth/signin", { email, password });
+            const { data } = await api.post("/auth/signin", { email, password, remember });
             localStorage.setItem("token", data.token);
             localStorage.setItem("user", JSON.stringify(data.user));
             router.push("/dashboard");
@@ -98,7 +99,26 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div className="flex justify-end">
+                        <div className="flex items-center justify-between px-1">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={remember}
+                                        onChange={(e) => setRemember(e.target.checked)}
+                                    />
+                                    <div className="w-5 h-5 border-2 border-white/10 rounded-md bg-white/5 peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all duration-300" />
+                                    <div className="absolute inset-0 flex items-center justify-center text-slate-950 opacity-0 peer-checked:opacity-100 transition-opacity">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-400 transition-colors uppercase tracking-widest">
+                                    Manter conectado
+                                </span>
+                            </label>
                             <button type="button" className="text-[10px] font-bold text-slate-600 hover:text-[#00d9a6] transition-colors uppercase tracking-widest">
                                 Esqueceu a senha?
                             </button>
