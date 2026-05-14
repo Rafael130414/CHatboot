@@ -2,14 +2,22 @@
 
 import React, { useEffect, useState } from "react";
 import {
+    CheckCircle,
+    UserPlus,
+    Hash,
+    Layers,
+    Mail,
+    Shield,
+    User,
+    MoreVertical,
+    Plus,
     Users,
     MessageSquare,
     Clock,
     CheckCircle2,
     TrendingUp,
-    Shield,
     Smartphone,
-    User
+    BarChart3
 } from "lucide-react";
 import {
     AreaChart,

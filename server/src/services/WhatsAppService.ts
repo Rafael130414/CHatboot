@@ -18,10 +18,10 @@ import fs from "fs";
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Verifica se o horário atual está dentro do horário de atendimento da empresa.
- * Força o uso do fuso horário de Brasília (UTC-3).
+ * Verifica se o horário atual está dentro do horário de atendimento.
+ * Pode verificar da empresa ou de um departamento específico.
  */
-const isWithinBusinessHours = async (companyId: number): Promise<boolean> => {
+const isWithinBusinessHours = async (companyId: number, departmentId?: number | null): Promise<boolean> => {
     // Ajuste para Horário de Brasília (UTC-3)
     const nowUtc = new Date();
     const nowBr = new Date(nowUtc.getTime() - (3 * 60 * 60 * 1000));
@@ -29,28 +29,31 @@ const isWithinBusinessHours = async (companyId: number): Promise<boolean> => {
     const dayNames = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
     const todayName = dayNames[nowBr.getUTCDay()];
 
-    console.log(`[BusinessHours] Checking for ${todayName} at ${nowBr.getUTCHours()}:${nowBr.getUTCMinutes()} (BR Time)`);
+    if (departmentId) {
+        // Verificar horário do departamento
+        const schedule = await prisma.departmentSchedule.findFirst({
+            where: { departmentId, weekday: todayName, active: true }
+        });
+        if (schedule) {
+            const [startH, startM] = schedule.startTime.split(":").map(Number);
+            const [endH, endM] = schedule.endTime.split(":").map(Number);
+            const currentMinutes = nowBr.getUTCHours() * 60 + nowBr.getUTCMinutes();
+            return currentMinutes >= (startH * 60 + startM) && currentMinutes < (endH * 60 + endM);
+        }
+    }
 
+    // Fallback para o horário da empresa
     const schedule = await prisma.schedule.findFirst({
         where: { companyId, weekday: todayName, active: true }
     });
 
-
-    if (!schedule) {
-        console.log(`[BusinessHours] No active schedule found for ${todayName}`);
-        return false;
-    }
+    if (!schedule) return true; // Se não tem agenda, assume aberto (ou false se quiser ser rígido)
 
     const [startH, startM] = schedule.start.split(":").map(Number);
     const [endH, endM] = schedule.end.split(":").map(Number);
 
     const currentMinutes = nowBr.getUTCHours() * 60 + nowBr.getUTCMinutes();
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    const result = currentMinutes >= startMinutes && currentMinutes < endMinutes;
-    console.log(`[BusinessHours] Result: ${result} (Current: ${currentMinutes}, Start: ${startMinutes}, End: ${endMinutes})`);
-    return result;
+    return currentMinutes >= (startH * 60 + startM) && currentMinutes < (endH * 60 + endM);
 };
 
 export const sessions: any = {};
@@ -302,15 +305,22 @@ export const initWhatsApp = async (whatsappId: number, companyId: number) => {
                         ]);
 
                         const delay = company?.antiBanDelay ?? 2000;
-                        const withinHours = await isWithinBusinessHours(companyId);
+                        const withinHours = await isWithinBusinessHours(companyId, ticket.departmentId);
 
                         console.log(`[BotLogic] Ticket: ${ticket.id}, NewCycle: ${isNewInteraction}, WithinHours: ${withinHours}`);
 
                         if (!withinHours) {
-                            if (isNewInteraction && waConn?.outOfHoursMessage && waConn.outOfHoursMessage.trim() !== "") {
+                            // Tenta carregar mensagem de fora de horário do departamento primeiro
+                            let oohMsg = waConn?.outOfHoursMessage;
+                            if (ticket.departmentId) {
+                                const dep = await prisma.department.findUnique({ where: { id: ticket.departmentId } });
+                                if (dep?.outOfHoursMessage) oohMsg = dep.outOfHoursMessage;
+                            }
+
+                            if (isNewInteraction && oohMsg && oohMsg.trim() !== "") {
                                 console.log(`[BotLogic] Sending OutOfHours message to ${remoteJid}`);
                                 await sleep(delay);
-                                await socket.sendMessage(remoteJid, { text: waConn.outOfHoursMessage });
+                                await socket.sendMessage(remoteJid, { text: oohMsg });
                             }
                         } else {
                             // Envia Boas-vindas apenas se for o início/reabertura do ciclo e houver mensagem definida

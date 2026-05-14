@@ -13,7 +13,8 @@ userRoutes.get("/", isAuth, async (req, res) => {
             id: true,
             name: true,
             email: true,
-            role: true
+            role: true,
+            departments: true
         }
     });
     return res.json(users);
@@ -21,7 +22,7 @@ userRoutes.get("/", isAuth, async (req, res) => {
 
 userRoutes.post("/", isAuth, async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, departmentIds } = req.body;
         const companyId = req.user.companyId;
 
         // Verificar se e-mail já existe
@@ -38,11 +39,15 @@ userRoutes.post("/", isAuth, async (req, res) => {
                 email,
                 password: hashedPassword,
                 role: role || "agent",
-                companyId
-            }
+                companyId,
+                departments: {
+                    connect: departmentIds?.map((id: number) => ({ id })) || []
+                }
+            },
+            include: { departments: true }
         });
 
-        return res.json({ id: newUser.id, name: newUser.name, email: newUser.email });
+        return res.json(newUser);
     } catch (error: any) {
         console.error("[UserRoutes] Create Error:", error.message);
         return res.status(500).json({ error: "Erro interno ao criar usuário. Verifique se os dados estão corretos." });

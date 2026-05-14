@@ -91,17 +91,33 @@ ticketRoutes.get("/", isAuth, async (req, res) => {
     }
 
     // Lógica de isolamento de tickets para Agentes:
-    // 1. Tickets "pending" (Aguardando) aparecem para todos (para alguém poder puxar)
-    // 2. Tickets "open" ou "closed" só aparecem para o próprio atendente (se não for admin)
+    // 1. Administradores veem tudo.
+    // 2. Agentes só veem tickets de departamentos aos quais pertencem.
+    // 3. Se não tiver departamento, veem tickets atribuídos a eles ou sem departamento se estiverem na fila.
     if (req.user.role !== "admin") {
-        if (where.status === "open" || where.status === "closed") {
-            where.userId = req.user.id;
-        } else if (!where.status || where.status === "all") {
-            // Se buscar todos, traz Pendentes de todos + Abertos/Fechados só meus
-            where.OR = [
-                { status: "pending" },
-                { userId: req.user.id }
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: { departments: true }
+        });
+        const departmentIds = user?.departments.map(d => d.id) || [];
+
+        const agentFilter: any = {
+            OR: [
+                { userId: req.user.id }, // Meus tickets
+                { departmentId: { in: departmentIds } } // Meus departamentos
+            ]
+        };
+
+        // Filtro específico para "todos" os tickets permitidos
+        if (!where.status || where.status === "all") {
+            where.OR = agentFilter.OR;
+        } else {
+            // Se filtrar por status, aplica o filtro de agente e o status
+            where.AND = [
+                { status: where.status },
+                agentFilter
             ];
+            delete where.status;
         }
     }
 
@@ -110,12 +126,15 @@ ticketRoutes.get("/", isAuth, async (req, res) => {
         include: {
             contact: true,
             lastMessage: true,
-            whatsapp: { select: { name: true } },
+            whatsapp: { select: { id: true, name: true } },
             tags: true,
             department: true,
             user: { select: { id: true, name: true } }
         },
-        orderBy: { updatedAt: "desc" }
+        orderBy: [
+            { department: { priority: "desc" } }, // Prioridade do Departamento
+            { updatedAt: "desc" }
+        ]
     });
     return res.json(tickets);
 });
@@ -174,34 +193,62 @@ ticketRoutes.post("/:id/close", isAuth, async (req, res) => {
     return res.json(updatedTicket);
 });
 
-// Transferir Atendimento
+// Transferir Atendimento (Smart Transfer)
 ticketRoutes.post("/:id/transfer", isAuth, async (req, res) => {
     const { id } = req.params;
     const { userId, departmentId } = req.body;
     const companyId = req.user.companyId;
 
-    const ticket = await prisma.ticket.findFirst({
-        where: { id: Number(id), companyId }
-    });
+    try {
+        const ticket = await prisma.ticket.findFirst({
+            where: { id: Number(id), companyId },
+            include: { contact: true, whatsapp: true }
+        });
 
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+        if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-    const updatedTicket = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: {
-            userId: userId ? Number(userId) : ticket.userId,
-            departmentId: departmentId ? Number(departmentId) : ticket.departmentId,
-            status: "pending"
-        },
-        include: { contact: true, whatsapp: { select: { name: true } }, tags: true, department: true, lastMessage: true }
-    });
+        const data: any = { status: "pending" };
+        if (userId) data.userId = Number(userId);
+        if (departmentId) data.departmentId = Number(departmentId);
 
-    getIO().to(`company-${companyId}`).emit("ticket", {
-        action: "update",
-        ticket: updatedTicket
-    });
+        const updatedTicket = await prisma.ticket.update({
+            where: { id: ticket.id },
+            data,
+            include: { contact: true, whatsapp: { select: { name: true } }, tags: true, department: true, lastMessage: true }
+        });
 
-    return res.json(updatedTicket);
+        // Enviar mensagem automática de transferência se mudar de departamento
+        if (departmentId && ticket.whatsapp && ticket.contact) {
+            const dep = await prisma.department.findUnique({ where: { id: Number(departmentId) } });
+            if (dep) {
+                const transferMsg = `*Aviso:* Seu atendimento foi transferido para o setor *${dep.name}*. Por favor, aguarde um instante.`;
+
+                // Usamos o controller ou enviamos direto via socket se quisermos simular, 
+                // mas o ideal é persistir a mensagem e enviar via WhatsAppService se disponível.
+                // Aqui vou apenas simular a criação da mensagem no banco para aparecer no chat.
+                await prisma.message.create({
+                    data: {
+                        body: transferMsg,
+                        fromMe: true,
+                        read: true,
+                        ticketId: ticket.id,
+                        contactId: ticket.contactId,
+                        type: "chat"
+                    }
+                });
+            }
+        }
+
+        getIO().to(`company-${companyId}`).emit("ticket", {
+            action: "update",
+            ticket: updatedTicket
+        });
+
+        return res.json(updatedTicket);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Erro ao transferir ticket" });
+    }
 });
 
 // Buscar mensagens de um ticket

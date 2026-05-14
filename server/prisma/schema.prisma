@@ -39,17 +39,32 @@ model User {
   updatedAt DateTime @updatedAt
   tickets   Ticket[]
   company   Company  @relation(fields: [companyId], references: [id])
+  departments Department[] @relation("UserToDepartment")
 }
 
 model Department {
   id        Int      @id @default(autoincrement())
   name      String
   color     String?
+  priority  Int      @default(0) // 0=normal, higher=more priority
+  outOfHoursMessage String?
   companyId Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   company   Company  @relation(fields: [companyId], references: [id])
   tickets   Ticket[]
+  users     User[]   @relation("UserToDepartment")
+  schedules DepartmentSchedule[]
+}
+
+model DepartmentSchedule {
+  id        Int      @id @default(autoincrement())
+  weekday   String   // Ex: "Segunda-feira"
+  startTime String   @default("08:00")
+  endTime   String   @default("18:00")
+  active    Boolean  @default(true)
+  departmentId Int
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 }
 
 model WhatsApp {

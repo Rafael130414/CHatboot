@@ -10,20 +10,38 @@ import {
     MoreVertical,
     Trash2,
     CheckCircle,
-    UserPlus
+    CheckCircle,
+    UserPlus,
+    Hash,
+    Layers
 } from "lucide-react";
 import api from "@/services/api";
 
 export default function TeamPage() {
     const [members, setMembers] = useState<any[]>([]);
+    const [departments, setDepartments] = useState<any[]>([]);
     const [showModal, setShowModal] = useState(false);
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [role, setRole] = useState("agent");
+    const [selectedDepts, setSelectedDepts] = useState<number[]>([]);
 
-    useEffect(() => { loadMembers(); }, []);
+    useEffect(() => {
+        loadMembers();
+        loadDepartments();
+    }, []);
+
+    const loadDepartments = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const { data } = await api.get("/departments", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setDepartments(data);
+        } catch (err) { console.error(err); }
+    };
 
     const loadMembers = async () => {
         try {
@@ -39,15 +57,22 @@ export default function TeamPage() {
         e.preventDefault();
         try {
             const token = localStorage.getItem("token");
-            await api.post("/users", { name, email, password, role }, {
+            await api.post("/users", { name, email, password, role, departmentIds: selectedDepts }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setShowModal(false);
             setName("");
             setEmail("");
             setPassword("");
+            setSelectedDepts([]);
             loadMembers();
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error("Error creating member:", err); }
+    };
+
+    const toggleDept = (id: number) => {
+        setSelectedDepts(prev =>
+            prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
+        );
     };
 
     return (
@@ -81,7 +106,23 @@ export default function TeamPage() {
                         </div>
 
                         <h3 className="text-xl font-bold text-white mb-1">{member.name}</h3>
-                        <p className="text-sm text-[#94a3b8] mb-8 font-medium">{member.email}</p>
+                        <p className="text-sm text-[#94a3b8] mb-6 font-medium">{member.email}</p>
+
+                        <div className="flex flex-wrap gap-2 mb-8">
+                            {member.departments?.map((dep: any) => (
+                                <div
+                                    key={dep.id}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest"
+                                    style={{ color: dep.color }}
+                                >
+                                    <div className="w-1 h-1 rounded-full" style={{ backgroundColor: dep.color }} />
+                                    {dep.name}
+                                </div>
+                            ))}
+                            {(!member.departments || member.departments.length === 0) && (
+                                <span className="text-[9px] font-black uppercase text-[#475569] tracking-widest">Sem departamento</span>
+                            )}
+                        </div>
 
                         <div className="flex items-center justify-between pt-6 border-t border-white/5">
                             <div className="flex items-center gap-2">
@@ -125,6 +166,24 @@ export default function TeamPage() {
                                         <option value="supervisor">Supervisor</option>
                                         <option value="admin">Administrador</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-[#475569] uppercase tracking-[0.2em] px-2">Departamentos Vinculados</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {departments.map((dep) => (
+                                        <button
+                                            key={dep.id}
+                                            type="button"
+                                            onClick={() => toggleDept(dep.id)}
+                                            className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${selectedDepts.includes(dep.id) ? 'bg-[#00d9a6]/10 border-[#00d9a6]/40' : 'bg-[#162952]/20 border-[#334155] hover:border-white/10'}`}
+                                        >
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dep.color }} />
+                                            <span className={`text-[11px] font-black uppercase tracking-wider ${selectedDepts.includes(dep.id) ? 'text-white' : 'text-slate-500'}`}>{dep.name}</span>
+                                            {selectedDepts.includes(dep.id) && <CheckCircle className="w-3 h-3 text-[#00d9a6] ml-auto" />}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 

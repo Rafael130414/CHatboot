@@ -73,11 +73,19 @@ dashboardRoutes.get("/stats", isAuth, async (req, res) => {
             });
         }
 
+        // Atendimentos por Departamento
+        const departments = await prisma.department.findMany({ where: { companyId } });
+        const deptStats = await Promise.all(departments.map(async (dept) => {
+            const count = await prisma.ticket.count({ where: { companyId, departmentId: dept.id } });
+            return { name: dept.name, count };
+        }));
+
         return res.json({
             kpis: { open, pending, closed, closedToday },
             perAgent: perAgent.filter(a => a.total > 0),
             perConnection,
-            weekData
+            weekData,
+            deptStats: deptStats.filter(d => d.count > 0)
         });
     } catch (err) {
         console.error(err);
