@@ -10,6 +10,7 @@ import {
 import api from "@/services/api";
 import { useSocket } from "@/hooks/useSocket";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 // ─── Custom Audio Player Component ──────────────────────────────────────────
 const CustomAudioPlayer = ({ src }: { src: string }) => {
@@ -88,7 +89,7 @@ const CustomAudioPlayer = ({ src }: { src: string }) => {
     );
 };
 
-export default function InboxPage() {
+function InboxContent() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [activeTicket, setActiveTicket] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
@@ -930,5 +931,13 @@ export default function InboxPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function InboxPage() {
+    return (
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-[#060d1a] text-white">Carregando Atendimentos...</div>}>
+            <InboxContent />
+        </Suspense>
     );
 }
