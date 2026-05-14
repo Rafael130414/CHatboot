@@ -1552,9 +1552,12 @@ export default function FlowbuilderPage() {
                         </Controls>
 
                         <MiniMap
-                            className="!bg-slate-900/50 !border-white/10 !rounded-3xl !backdrop-blur-md overflow-hidden"
-                            nodeColor="#00c9a7"
-                            maskColor="rgba(6,13,26,0.7)" />
+                            className="!bg-[#060D1A]/80 !border-white/5 !rounded-[2rem] !backdrop-blur-xl shadow-2xl"
+                            nodeColor={(n) => getNodeColor(n.type || "")}
+                            maskColor="rgba(0,0,0,0.4)"
+                            nodeStrokeWidth={3}
+                            zoomable
+                            pannable />
                     </ReactFlow>
                 )}
 
