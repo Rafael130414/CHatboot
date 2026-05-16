@@ -52,7 +52,7 @@ export class IxcService {
             // 2. Buscar Boletos em Aberto (status = 'A')
             const gridParam = [{ TB: "fn_areceber.status", OP: "=", P: "A" }];
             if (contractId) {
-                gridParam.push({ TB: "fn_areceber.id_contrato_principal", OP: "=", P: contractId });
+                gridParam.push({ TB: "fn_areceber.id_contrato", OP: "=", P: contractId });
             } else {
                 gridParam.push({ TB: "fn_areceber.id_cliente", OP: "=", P: clientId });
             }
@@ -126,7 +126,8 @@ export class IxcService {
             });
             const clientData = await clientRes.json();
             if (!clientData.registros || clientData.registros.length === 0) return null;
-            const clientId = clientData.registros[0].id;
+            const client = clientData.registros[0];
+            const clientId = client.id;
 
             // 2. Listar RadUsuarios (Logins)
             const loginsRes = await fetch(`${url}/webservice/v1/radusuarios`, {
@@ -144,7 +145,12 @@ export class IxcService {
                 })
             });
             const loginsData = await loginsRes.json();
-            return loginsData.registros || [];
+            const registros = loginsData.registros || [];
+
+            return registros.map((r: any) => ({
+                ...r,
+                endereco: r.endereco && r.endereco !== "" ? r.endereco : `${client.endereco}, ${client.numero}`
+            }));
         } catch (e) {
             return null;
         }
