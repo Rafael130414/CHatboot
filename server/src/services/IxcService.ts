@@ -91,8 +91,9 @@ export class IxcService {
                     id: activeBol.id,
                     vencimento: activeBol.data_vencimento,
                     valor: activeBol.valor,
-                    linhaDigitavel: activeBol.linha_digitavel,
-                    link: activeBol.gateway_link,
+                    linhaDigitavel: activeBol.linha_digitavel || "",
+                    link: activeBol.gateway_link || `${url}/central_assinante_web/api/get_boleto?id=${activeBol.id}`,
+                    linkSegundaVia: `${url}/central_assinante_web/api/get_boleto?id=${activeBol.id}`,
                 }
             };
 

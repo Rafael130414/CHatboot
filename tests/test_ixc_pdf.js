@@ -7,14 +7,14 @@ const auth = Buffer.from(token).toString("base64");
 async function test() {
     try {
         console.log("Testing IXC PDF...");
-        const res = await fetch(`${url}/webservice/v1/fn_areceber/imprimir_boleto_api`, {
+        const res = await fetch(`${url}/webservice/v1/get_boleto`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Basic ${auth}`
             },
             body: JSON.stringify({
-                id: "553855"
+                id: "553772"
             })
         });
         const data = await res.json();
