@@ -3,6 +3,7 @@ import { getSession } from "./WhatsAppService.js";
 import { logger } from "../utils/logger.js";
 import redis from "../libs/redis.js";
 import { AiService } from "./AiService.js";
+import { IxcService } from "./IxcService.js";
 
 // ── Tipagem do Contexto de Conversa ──────────────────
 interface FlowContext {
@@ -430,6 +431,36 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                         }
                     }
                 }
+                const edge = edges.find((e: any) => e.source === nodeId);
+                if (edge) return await executeNode(edge.target);
+                return null;
+            }
+
+            // ── IXC BOLETO NODE ──────────────────────────────
+            if (node.type === "ixcBoletoNode") {
+                const cpfVar = node.data.cpfVariable || "cpf";
+                const cpfValue = ctx.variables[cpfVar] || body; // se nao tiver variavel, usa o corpo da msg
+
+                if (cpfValue && cpfValue.length >= 11) {
+                    const result = await IxcService.getBoleto(companyId, cpfValue);
+
+                    if (result.success && result.boleto) {
+                        const { vencimento, link, linhaDigitavel, valor } = result.boleto;
+                        const msg = interpolate(
+                            node.data.successMessage ||
+                            `✅ Boleto encontrado!\n\n💰 Valor: R$ ${valor}\n📅 Vencimento: ${vencimento}\n\n🔗 Link: ${link}\n\n🔢 Linha Digitável:\n${linhaDigitavel}`,
+                            { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
+                        );
+                        await socket.sendMessage(remoteJid, { text: msg });
+                    } else {
+                        const errorMsg = interpolate(
+                            result.message || "Não conseguimos localizar seu boleto.",
+                            ctx
+                        );
+                        await socket.sendMessage(remoteJid, { text: errorMsg });
+                    }
+                }
+
                 const edge = edges.find((e: any) => e.source === nodeId);
                 if (edge) return await executeNode(edge.target);
                 return null;

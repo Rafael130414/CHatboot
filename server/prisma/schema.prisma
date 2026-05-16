@@ -25,6 +25,8 @@ model Company {
   tickets           Ticket[]
   users             User[]
   whatsapps         WhatsApp[]
+  ixcUrl            String?
+  ixcToken          String?
   schedules         Schedule[]
   aiConfigs         CompanyAIConfig[]
 }

@@ -53,12 +53,15 @@ export default function SettingsPage() {
         active: true,
     });
     const [showApiKey, setShowApiKey] = useState(false);
+    const [ixcConfig, setIxcConfig] = useState({ url: "", token: "" });
+    const [showIxcToken, setShowIxcToken] = useState(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         fetchSchedules();
         fetchBotSettings();
         fetchAiConfig();
+        fetchIxcConfig();
     }, []);
 
     const fetchSchedules = async () => {
@@ -164,6 +167,44 @@ export default function SettingsPage() {
             toast.success("Configurações de IA salvas!");
         } catch (error) {
             toast.error("Erro ao salvar configurações de IA.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchIxcConfig = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`${API_URL}/settings/ixc`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data) {
+                setIxcConfig({
+                    url: data.ixcUrl || "",
+                    token: data.ixcToken || "",
+                });
+            }
+        } catch (error) {
+            console.error("Erro ao carregar configurações de IXC", error);
+        }
+    };
+
+    const saveIxcConfig = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem("token");
+            await fetch(`${API_URL}/settings/ixc`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    ixcUrl: ixcConfig.url,
+                    ixcToken: ixcConfig.token
+                })
+            });
+            toast.success("Configurações IXC salvas!");
+        } catch (error) {
+            toast.error("Erro ao salvar configurações IXC.");
         } finally {
             setLoading(false);
         }
@@ -464,6 +505,71 @@ export default function SettingsPage() {
                                     className={`w-14 h-8 rounded-full relative p-1 cursor-pointer transition-all duration-300 ${aiConfig.active ? 'bg-[#00d9a6]' : 'bg-[#334155]'}`}
                                 >
                                     <div className={`w-6 h-6 bg-white rounded-full absolute shadow-lg transition-all duration-300 ${aiConfig.active ? 'right-1' : 'left-1'}`} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── Integrações ──────────────────────────── */}
+                    {activeTab === "Integrações" && (
+                        <div className="space-y-10 animate-in slide-in-from-right-4 duration-500">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Zap className="w-6 h-6 text-[#00d9a6]" /> Gerenciar Integrações
+                                </h3>
+                                <button
+                                    onClick={saveIxcConfig}
+                                    disabled={loading}
+                                    className="bg-[#00d9a6] text-[#0a1120] px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-50"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {loading ? "Salvando..." : "Salvar Configurações"}
+                                </button>
+                            </div>
+
+                            {/* IXC Soft Section */}
+                            <div className="bg-[#0a1120] p-8 rounded-[2rem] border border-[#334155]/30 space-y-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center border border-white/5 shadow-xl">
+                                        <img src="https://ixcsoft.com.br/wp-content/uploads/2021/04/Logo-IXC-Soft-Vertical-1.png" className="w-10 opacity-80" alt="IXC" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-white font-display font-black text-lg">IXC Soft (ERP)</h4>
+                                        <p className="text-xs text-[#94a3b8]">Automatize a busca de boletos e consulta de clientes diretamente no seu IXC.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">URL da API do seu IXC</label>
+                                        <input
+                                            placeholder="https://sua-url.ixcsoft.com.br"
+                                            value={ixcConfig.url}
+                                            onChange={(e) => setIxcConfig(prev => ({ ...prev, url: e.target.value }))}
+                                            className="w-full bg-[#1e293b] border border-[#334155] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00d9a6] outline-none"
+                                        />
+                                        <p className="text-[10px] text-[#475569] px-2 italic">Exemplo: https://ixc.meuprovedor.com.br</p>
+                                    </div>
+
+                                    <div className="space-y-2 relative">
+                                        <label className="text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">Token de API (IXC Token)</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showIxcToken ? "text" : "password"}
+                                                placeholder="Token gerado no IXC..."
+                                                value={ixcConfig.token}
+                                                onChange={(e) => setIxcConfig(prev => ({ ...prev, token: e.target.value }))}
+                                                className="w-full bg-[#1e293b] border border-[#334155] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00d9a6] outline-none pr-12"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowIxcToken(!showIxcToken)}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#475569] hover:text-[#00d9a6] transition-colors"
+                                            >
+                                                {showIxcToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

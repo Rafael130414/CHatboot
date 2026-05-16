@@ -88,4 +88,28 @@ settingRoutes.put("/bot", isAuth, async (req, res) => {
     return res.json({ success: true, company });
 });
 
+// ─── Integração IXC Soft ──────────────────────────────────────────────────────
+
+settingRoutes.get("/ixc", isAuth, async (req, res) => {
+    const company = await prisma.company.findUnique({
+        where: { id: req.user.companyId },
+        select: { ixcUrl: true, ixcToken: true }
+    });
+    return res.json(company);
+});
+
+settingRoutes.put("/ixc", isAuth, async (req, res) => {
+    const { ixcUrl, ixcToken } = req.body;
+
+    await prisma.company.update({
+        where: { id: req.user.companyId },
+        data: {
+            ixcUrl: ixcUrl || null,
+            ixcToken: ixcToken || null
+        }
+    });
+
+    return res.json({ success: true });
+});
+
 export default settingRoutes;
