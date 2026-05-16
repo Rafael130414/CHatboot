@@ -452,10 +452,19 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
 
                         if (result.success && result.boleto) {
                             const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
+                            const dataFmt = vencimento.split("-").reverse().join("/");
                             const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
                             const msg = interpolate(
                                 node.data.successMessage ||
-                                `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras:*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
+                                `💳 *Seu Boleto em Aberto*
+
+💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}
+📅 *Vencimento:* ${dataFmt}${hasLinha ? `
+
+🔢 *Copie o código abaixo e pague em qualquer banco:*
+${linhaDigitavel}` : ""}
+
+🗂️ O PDF do boleto foi enviado abaixo ↓`,
                                 { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
                             );
                             await socket.sendMessage(remoteJid, { text: msg });
@@ -502,10 +511,19 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                             const result = await IxcService.getBoleto(companyId, "", logins[0].id_contrato);
                             if (result.success && result.boleto) {
                                 const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
+                                const dataFmt = vencimento.split("-").reverse().join("/");
                                 const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
                                 const msg = interpolate(
                                     node.data.successMessage ||
-                                    `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras:*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
+                                    `💳 *Seu Boleto em Aberto*
+
+💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}
+📅 *Vencimento:* ${dataFmt}${hasLinha ? `
+
+🔢 *Copie o código abaixo e pague em qualquer banco:*
+${linhaDigitavel}` : ""}
+
+🗂️ O PDF do boleto foi enviado abaixo ↓`,
                                     { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
                                 );
                                 await socket.sendMessage(remoteJid, { text: msg });
@@ -530,10 +548,19 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                             const result = await IxcService.getBoleto(companyId, cpfValue);
                             if (result.success && result.boleto) {
                                 const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
+                                const dataFmt = vencimento.split("-").reverse().join("/");
                                 const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
                                 const msg = interpolate(
                                     node.data.successMessage ||
-                                    `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras:*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
+                                    `💳 *Seu Boleto em Aberto*
+
+💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}
+📅 *Vencimento:* ${dataFmt}${hasLinha ? `
+
+🔢 *Copie o código abaixo e pague em qualquer banco:*
+${linhaDigitavel}` : ""}
+
+🗂️ O PDF do boleto foi enviado abaixo ↓`,
                                     ctx
                                 );
                                 await socket.sendMessage(remoteJid, { text: msg });
