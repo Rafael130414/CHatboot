@@ -438,26 +438,78 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
 
             // ── IXC BOLETO NODE ──────────────────────────────
             if (node.type === "ixcBoletoNode") {
-                const cpfVar = node.data.cpfVariable || "cpf";
-                const cpfValue = ctx.variables[cpfVar] || body; // se nao tiver variavel, usa o corpo da msg
+                const ixcStateKey = `ixcState:${ticketId}`;
+                const waitingChoice = await redis.get(ixcStateKey);
 
-                if (cpfValue && cpfValue.length >= 11) {
-                    const result = await IxcService.getBoleto(companyId, cpfValue);
+                if (waitingChoice) {
+                    const loginsRaw = await redis.get(`ixcLogins:${ticketId}`);
+                    const logins = loginsRaw ? JSON.parse(loginsRaw) : [];
+                    const choice = parseInt(body.trim()) - 1;
 
-                    if (result.success && result.boleto) {
-                        const { vencimento, link, linhaDigitavel, valor } = result.boleto;
-                        const msg = interpolate(
-                            node.data.successMessage ||
-                            `✅ Boleto encontrado!\n\n💰 Valor: R$ ${valor}\n📅 Vencimento: ${vencimento}\n\n🔗 Link: ${link}\n\n🔢 Linha Digitável:\n${linhaDigitavel}`,
-                            { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
-                        );
-                        await socket.sendMessage(remoteJid, { text: msg });
+                    if (!isNaN(choice) && logins[choice]) {
+                        const selected = logins[choice];
+                        const result = await IxcService.getBoleto(companyId, "", selected.id_contrato);
+
+                        if (result.success && result.boleto) {
+                            const { vencimento, link, linhaDigitavel, valor } = result.boleto;
+                            const msg = interpolate(
+                                node.data.successMessage ||
+                                `✅ Boleto encontrado para o endereço: *${selected.endereco}*\n\n💰 Valor: R$ ${valor}\n📅 Vencimento: ${vencimento}\n\n🔗 Link: ${link}\n\n🔢 Linha Digitável:\n${linhaDigitavel}`,
+                                { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
+                            );
+                            await socket.sendMessage(remoteJid, { text: msg });
+                            await redis.del(ixcStateKey);
+                            await redis.del(`ixcLogins:${ticketId}`);
+                        } else {
+                            await socket.sendMessage(remoteJid, { text: result.message || "Erro ao buscar boleto." });
+                        }
                     } else {
-                        const errorMsg = interpolate(
-                            result.message || "Não conseguimos localizar seu boleto.",
-                            ctx
-                        );
-                        await socket.sendMessage(remoteJid, { text: errorMsg });
+                        await socket.sendMessage(remoteJid, { text: "⚠️ Opção inválida. Por favor, responda apenas com o *número* correspondente ao seu endereço." });
+                        return nodeId;
+                    }
+                } else {
+                    const cpfVar = node.data.cpfVariable || "cpf";
+                    const cpfValue = ctx.variables[cpfVar] || body;
+
+                    if (cpfValue && cpfValue.length >= 11) {
+                        const logins = await IxcService.listLogins(companyId, cpfValue);
+
+                        if (logins && logins.length > 1) {
+                            let msg = "🔍 Identificamos múltiplos acessos em seu CPF.\nQual deles você deseja consultar?\n";
+                            logins.forEach((l: any, i: number) => {
+                                msg += `\n*${i + 1}* - ${l.endereco} (${l.usuario})`;
+                            });
+                            await socket.sendMessage(remoteJid, { text: msg });
+
+                            await redis.set(ixcStateKey, "waiting", "EX", 600);
+                            await redis.set(`ixcLogins:${ticketId}`, JSON.stringify(logins), "EX", 600);
+                            return nodeId;
+                        } else if (logins && logins.length === 1) {
+                            const result = await IxcService.getBoleto(companyId, "", logins[0].id_contrato);
+                            if (result.success && result.boleto) {
+                                const { vencimento, link, linhaDigitavel, valor } = result.boleto;
+                                const msg = interpolate(
+                                    node.data.successMessage ||
+                                    `✅ Boleto encontrado!\n\n💰 Valor: R$ ${valor}\n📅 Vencimento: ${vencimento}\n\n🔗 Link: ${link}\n\n🔢 Linha Digitável:\n${linhaDigitavel}`,
+                                    { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
+                                );
+                                await socket.sendMessage(remoteJid, { text: msg });
+                            } else {
+                                await socket.sendMessage(remoteJid, { text: result.message || "Não encontramos boletos em aberto." });
+                            }
+                        } else {
+                            // Fallback caso não ache logins rad, tenta pelo CPF direto no cliente
+                            const result = await IxcService.getBoleto(companyId, cpfValue);
+                            if (result.success && result.boleto) {
+                                const { vencimento, link, linhaDigitavel, valor } = result.boleto;
+                                const msg = interpolate(node.data.successMessage || `✅ Boleto encontrado!\n\n💰 Valor: R$ ${valor}\n📅 Vencimento: ${vencimento}\n\n🔗 Link: ${link}\n\n🔢 Linha Digitável:\n${linhaDigitavel}`, ctx);
+                                await socket.sendMessage(remoteJid, { text: msg });
+                            } else {
+                                await socket.sendMessage(remoteJid, { text: "❌ Não conseguimos localizar seu cadastro ou boletos em aberto." });
+                            }
+                        }
+                    } else {
+                        await socket.sendMessage(remoteJid, { text: "⚠️ Por favor, informe um CPF válido para consulta." });
                     }
                 }
 

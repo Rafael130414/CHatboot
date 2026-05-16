@@ -17,39 +17,45 @@ export class IxcService {
         };
     }
 
-    static async getBoleto(companyId: number, cpf: string) {
+    static async getBoleto(companyId: number, cpf: string, contractId?: string) {
         try {
             const { url, token } = await this.getConfigs(companyId);
             const auth = Buffer.from(token).toString("base64");
 
-            // 1. Buscar Cliente pelo CPF
-            const clientRes = await fetch(`${url}/webservice/v1/cliente`, {
-                method: "POST", // A API IXC costuma usar POST para filtros complexos via JSON
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Basic ${auth}`,
-                    "ixcsoft": "listar"
-                },
-                body: JSON.stringify({
-                    qtype: "cliente.cnpj_cpf",
-                    query: cpf.replace(/\D/g, ""), // apenas números
-                    oper: "=",
-                    page: "1",
-                    rp: "1",
-                    sortname: "cliente.id",
-                    sortorder: "desc"
-                })
-            });
+            // 1. Buscar Cliente pelo CPF (se não tiver contractId, precisamos do cliente)
+            let clientId = "";
+            if (!contractId) {
+                const clientRes = await fetch(`${url}/webservice/v1/cliente`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Basic ${auth}`,
+                        "ixcsoft": "listar"
+                    },
+                    body: JSON.stringify({
+                        qtype: "cliente.cnpj_cpf",
+                        query: cpf.replace(/\D/g, ""),
+                        oper: "=",
+                        page: "1",
+                        rp: "1"
+                    })
+                });
 
-            const clientData = await clientRes.json();
-
-            if (!clientData.registros || clientData.registros.length === 0) {
-                return { success: false, message: "CPF não encontrado no sistema IXC." };
+                const clientData = await clientRes.json();
+                if (!clientData.registros || clientData.registros.length === 0) {
+                    return { success: false, message: "CPF não encontrado no sistema IXC." };
+                }
+                clientId = clientData.registros[0].id;
             }
 
-            const clientId = clientData.registros[0].id;
-
             // 2. Buscar Boletos em Aberto (status = 'A')
+            const gridParam = [{ TB: "fn_areceber.status", OP: "=", P: "A" }];
+            if (contractId) {
+                gridParam.push({ TB: "fn_areceber.id_contrato_principal", OP: "=", P: contractId });
+            } else {
+                gridParam.push({ TB: "fn_areceber.id_cliente", OP: "=", P: clientId });
+            }
+
             const boletoRes = await fetch(`${url}/webservice/v1/fn_areceber`, {
                 method: "POST",
                 headers: {
@@ -58,14 +64,14 @@ export class IxcService {
                     "ixcsoft": "listar"
                 },
                 body: JSON.stringify({
-                    qtype: "fn_areceber.id_cliente",
-                    query: clientId,
-                    oper: "=",
-                    grid_param: JSON.stringify([{ TB: "fn_areceber.status", OP: "=", P: "A" }]),
+                    qtype: "fn_areceber.id",
+                    query: "0",
+                    oper: ">",
+                    grid_param: JSON.stringify(gridParam),
                     page: "1",
                     rp: "5",
                     sortname: "fn_areceber.data_vencimento",
-                    sortorder: "asc" // Próximo boleto a vencer primeiro
+                    sortorder: "asc"
                 })
             });
 
@@ -92,6 +98,53 @@ export class IxcService {
         } catch (error: any) {
             console.error("[IXC Service Error]:", error.message);
             return { success: false, message: "Erro ao comunicar com o servidor financeiro." };
+        }
+    }
+
+    static async listLogins(companyId: number, cpf: string) {
+        try {
+            const { url, token } = await this.getConfigs(companyId);
+            const auth = Buffer.from(token).toString("base64");
+
+            // 1. Buscar Cliente
+            const clientRes = await fetch(`${url}/webservice/v1/cliente`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${auth}`,
+                    "ixcsoft": "listar"
+                },
+                body: JSON.stringify({
+                    qtype: "cliente.cnpj_cpf",
+                    query: cpf.replace(/\D/g, ""),
+                    oper: "=",
+                    page: "1",
+                    rp: "1"
+                })
+            });
+            const clientData = await clientRes.json();
+            if (!clientData.registros || clientData.registros.length === 0) return null;
+            const clientId = clientData.registros[0].id;
+
+            // 2. Listar RadUsuarios (Logins)
+            const loginsRes = await fetch(`${url}/webservice/v1/radusuarios`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${auth}`,
+                    "ixcsoft": "listar"
+                },
+                body: JSON.stringify({
+                    qtype: "radusuarios.id_cliente",
+                    query: clientId,
+                    oper: "=",
+                    rp: "10"
+                })
+            });
+            const loginsData = await loginsRes.json();
+            return loginsData.registros || [];
+        } catch (e) {
+            return null;
         }
     }
 }
