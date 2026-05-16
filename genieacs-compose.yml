@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  genieacs-mongo:
+    image: mongo:4.4
+    container_name: genieacs-mongo
+    restart: always
+    volumes:
+      - /root/genieacs/data/mongo:/data/db
+    networks:
+      - genieacs-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+
+  genieacs-core:
+    image: drumsergio/genieacs:latest
+    container_name: genieacs-core
+    restart: always
+    depends_on:
+      - genieacs-mongo
+    ports:
+      - "3005:3000" # GUI
+      - "7547:7547" # CWMP
+      - "7557:7557" # NBI
+      - "7567:7567" # FS
+    environment:
+      - GENIEACS_MONGODB_CONNECTION_URL=mongodb://genieacs-mongo:27017/genieacs
+      - GENIEACS_UI_JWT_SECRET=supersecret2026x_genieacs
+    volumes:
+      - /root/genieacs/data/ext:/opt/genieacs/ext
+    networks:
+      - genieacs-net
+
+networks:
+  genieacs-net:
+    driver: bridge
