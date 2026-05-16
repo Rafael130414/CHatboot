@@ -13,6 +13,7 @@ import flowRoutes from "./routes/FlowRoutes.js";
 import settingRoutes from "./routes/SettingRoutes.js";
 import mediaRoutes from "./routes/MediaRoutes.js";
 import dashboardRoutes from "./routes/DashboardRoutes.js";
+import aiRoutes from "./routes/AiRoutes.js";
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use("/flows", flowRoutes);
 app.use("/settings", settingRoutes);
 app.use("/media", mediaRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/ai", aiRoutes);
 
 
 app.get("/", (req, res) => {

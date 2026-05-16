@@ -2,6 +2,7 @@ import prisma from "../libs/prisma.js";
 import { getSession } from "./WhatsAppService.js";
 import { logger } from "../utils/logger.js";
 import redis from "../libs/redis.js";
+import { AiService } from "./AiService.js";
 
 // ── Tipagem do Contexto de Conversa ──────────────────
 interface FlowContext {
@@ -375,10 +376,16 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
             if (node.type === "aiNode") {
                 logger.info("[Flow] AINode: processing with IA");
                 await socket.sendPresenceUpdate("composing", remoteJid);
-                await new Promise(r => setTimeout(r, 1200));
-                const prompt = interpolate(node.data.prompt || "", ctx);
-                // Placeholder IA — substituir por OpenAI/Gemini na Fase 2
-                const aiResp = `[IA] Analisando: "${body}". ${prompt.substring(0, 60)}...`;
+
+                const systemPrompt = interpolate(node.data.prompt || "Você é um assistente prestativo.", ctx);
+
+                const aiResp = await AiService.getResponse(
+                    companyId,
+                    ticketId,
+                    body,
+                    systemPrompt
+                );
+
                 await socket.sendMessage(remoteJid, { text: aiResp });
 
                 if (node.data.saveToVar) {

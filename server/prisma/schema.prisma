@@ -26,6 +26,7 @@ model Company {
   users             User[]
   whatsapps         WhatsApp[]
   schedules         Schedule[]
+  aiConfigs         CompanyAIConfig[]
 }
 
 model User {
@@ -40,6 +41,19 @@ model User {
   tickets   Ticket[]
   company   Company  @relation(fields: [companyId], references: [id])
   departments Department[] @relation("UserToDepartment")
+}
+
+model CompanyAIConfig {
+  id        Int      @id @default(autoincrement())
+  provider  String   @default("openai") // openai, gemini, groq, etc
+  apiKey    String
+  model     String?  // gpt-4o, gemini-1.5-pro, etc
+  url       String?  // para endpoints customizados
+  active    Boolean  @default(true)
+  companyId Int      @unique
+  company   Company  @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Department {

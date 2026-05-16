@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Shield, MessageSquare, Zap, Palette, Globe, Clock, Save, CheckCircle2, Bot, Timer, BellRing, ExternalLink } from "lucide-react";
+import { Shield, MessageSquare, Zap, Palette, Globe, Clock, Save, CheckCircle2, Bot, Timer, BellRing, ExternalLink, Brain, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface Schedule {
@@ -16,6 +16,14 @@ interface BotSettings {
     welcomeMessage: string;
     outOfHoursMessage: string;
     antiBanDelay: number;
+}
+
+interface AiConfig {
+    provider: string;
+    apiKey: string;
+    model: string;
+    url: string;
+    active: boolean;
 }
 
 const getApiUrl = () => {
@@ -37,11 +45,20 @@ export default function SettingsPage() {
         outOfHoursMessage: "",
         antiBanDelay: 2000,
     });
+    const [aiConfig, setAiConfig] = useState<AiConfig>({
+        provider: "openai",
+        apiKey: "",
+        model: "gpt-3.5-turbo",
+        url: "",
+        active: true,
+    });
+    const [showApiKey, setShowApiKey] = useState(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         fetchSchedules();
         fetchBotSettings();
+        fetchAiConfig();
     }, []);
 
     const fetchSchedules = async () => {
@@ -114,10 +131,49 @@ export default function SettingsPage() {
         }
     };
 
+    const fetchAiConfig = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`${API_URL}/ai/config`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data && data.id) {
+                setAiConfig({
+                    provider: data.provider || "openai",
+                    apiKey: data.apiKey || "",
+                    model: data.model || "",
+                    url: data.url || "",
+                    active: data.active ?? true,
+                });
+            }
+        } catch (error) {
+            console.error("Erro ao carregar configurações de IA", error);
+        }
+    };
+
+    const saveAiConfig = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem("token");
+            await fetch(`${API_URL}/ai/config`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(aiConfig)
+            });
+            toast.success("Configurações de IA salvas!");
+        } catch (error) {
+            toast.error("Erro ao salvar configurações de IA.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const tabs = [
         { icon: Globe, label: "Geral" },
         { icon: Clock, label: "Horário de Atendimento" },
         { icon: Bot, label: "Comportamento do Bot" },
+        { icon: Brain, label: "Inteligência Artificial" },
         { icon: Shield, label: "Segurança" },
         { icon: MessageSquare, label: "Chat" },
         { icon: Zap, label: "Integrações" },
@@ -318,6 +374,100 @@ export default function SettingsPage() {
                         </div>
                     )}
 
+                    {/* ─── Inteligência Artificial ───────────────── */}
+                    {activeTab === "Inteligência Artificial" && (
+                        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Brain className="w-6 h-6 text-[#00d9a6]" /> Configurações de IA
+                                </h3>
+                                <button
+                                    onClick={saveAiConfig}
+                                    disabled={loading}
+                                    className="bg-[#00d9a6] text-[#0a1120] px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-50"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {loading ? "Salvando..." : "Salvar Configuração"}
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">Provedor de IA</label>
+                                    <select
+                                        value={aiConfig.provider}
+                                        onChange={(e) => setAiConfig(prev => ({ ...prev, provider: e.target.value }))}
+                                        className="w-full bg-[#0a1120] border border-[#334155] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00d9a6] outline-none appearance-none"
+                                    >
+                                        <option value="openai">OpenAI (ChatGPT)</option>
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="groq">Groq (Llama/Mistral)</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">Modelo</label>
+                                    <input
+                                        placeholder="Ex: gpt-4o, gemini-pro, llama-3-8b"
+                                        value={aiConfig.model}
+                                        onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                                        className="w-full bg-[#0a1120] border border-[#334155] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00d9a6] outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2 relative">
+                                    <label className="text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">Chave de API (API KEY)</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showApiKey ? "text" : "password"}
+                                            placeholder="sk-..."
+                                            value={aiConfig.apiKey}
+                                            onChange={(e) => setAiConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                                            className="w-full bg-[#0a1120] border border-[#334155] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00d9a6] outline-none pr-12"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowApiKey(!showApiKey)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#475569] hover:text-[#00d9a6] transition-colors"
+                                        >
+                                            {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-[10px] font-black uppercase text-[#475569] tracking-widest px-2">URL Customizada (Opcional)</label>
+                                    <input
+                                        placeholder="https://api.openai.com/v1"
+                                        value={aiConfig.url}
+                                        onChange={(e) => setAiConfig(prev => ({ ...prev, url: e.target.value }))}
+                                        className="w-full bg-[#0a1120] border border-[#334155] rounded-2xl py-4 px-6 text-white text-sm focus:border-[#00d9a6] outline-none"
+                                    />
+                                    <p className="text-[10px] text-[#475569] px-2 italic">Deixe vazio para usar a URL padrão do provedor.</p>
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-white/5" />
+
+                            <div className="flex items-center justify-between bg-[#0a1120] p-8 rounded-[2rem] border border-[#334155]/20 shadow-inner">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${aiConfig.active ? 'bg-[#00d9a6]/10' : 'bg-red-500/10'}`}>
+                                        <Zap className={`w-6 h-6 ${aiConfig.active ? 'text-[#00d9a6]' : 'text-red-500'}`} />
+                                    </div>
+                                    <div>
+                                        <p className="text-white font-bold">Estado da Inteligência Artificial</p>
+                                        <p className="text-xs text-[#94a3b8]">Habilite ou desabilite globalmente as funções de IA para sua empresa.</p>
+                                    </div>
+                                </div>
+                                <div
+                                    onClick={() => setAiConfig(prev => ({ ...prev, active: !prev.active }))}
+                                    className={`w-14 h-8 rounded-full relative p-1 cursor-pointer transition-all duration-300 ${aiConfig.active ? 'bg-[#00d9a6]' : 'bg-[#334155]'}`}
+                                >
+                                    <div className={`w-6 h-6 bg-white rounded-full absolute shadow-lg transition-all duration-300 ${aiConfig.active ? 'right-1' : 'left-1'}`} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
