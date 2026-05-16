@@ -2,7 +2,7 @@ import { IxcService } from "./IxcService.js";
 import prisma from "../libs/prisma.js";
 
 export class GenieACSSyncService {
-    static GENIEACS_URL = "http://127.0.0.1:7557"; // NBI API
+    static GENIEACS_URL = "http://37.148.134.48:7557"; // NBI API
 
     static async syncDevices() {
         try {
