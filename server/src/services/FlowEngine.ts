@@ -492,33 +492,51 @@ ${linhaDigitavel}` : ""}
                     }
                 } else {
                     const cpfVar = node.data.cpfVariable || "cpf";
-                    const cpfValue = ctx.variables[cpfVar] || body;
+                    let cpfValue = ctx.variables[cpfVar];
 
-                    if (cpfValue && cpfValue.length >= 11) {
-                        const logins = await IxcService.listLogins(companyId, cpfValue);
+                    // Se o usuário digitou agora especificamente para este nó, atualizamos a variável
+                    if (inputMsg) {
+                        cpfValue = inputMsg;
+                        ctx.variables[cpfVar] = inputMsg;
+                        await saveContext(ticketId, ctx);
+                    }
 
-                        if (logins && logins.length > 1) {
-                            let msg = "🔍 *Identificamos mais de um acesso vinculado ao seu CPF.*\nQual deles você deseja consultar?\n";
-                            logins.forEach((l: any, i: number) => {
-                                const loginLabel = l.login || l.conexao || `Contrato ${l.id_contrato}`;
-                                const statusIcon = l.online === "S" ? "🟢" : "🔴";
-                                msg += `\n*${i + 1}* ${statusIcon} ${l.endereco}\n   🖥️ Login: ${loginLabel}`;
-                            });
-                            msg += "\n\nResponda com o número da opção desejada.";
-                            await socket.sendMessage(remoteJid, { text: msg });
+                    // Validação de CPF (mínimo 11 números)
+                    const cleanCpf = (cpfValue || "").replace(/\\D/g, '');
+                    if (cleanCpf.length < 11) {
+                        // Só enviamos aviso de CPF inválido se o usuário REALMENTE tentou enviar algo para este nó.
+                        // Se inputMsg for undefined, significa que o fluxo acabou de chegar no nó, então apenas pausamos aguardando.
+                        if (inputMsg) {
+                            await socket.sendMessage(remoteJid, { text: "⚠️ Por favor, informe um CPF válido com 11 dígitos para consulta." });
+                        }
+                        return nodeId; // Pausa o fluxo no IXC Node
+                    }
 
-                            await redis.set(ixcStateKey, "waiting", "EX", 600);
-                            await redis.set(`ixcLogins:${ticketId}`, JSON.stringify(logins), "EX", 600);
-                            return nodeId;
-                        } else if (logins && logins.length === 1) {
-                            const result = await IxcService.getBoleto(companyId, "", logins[0].id_contrato);
-                            if (result.success && result.boleto) {
-                                const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
-                                const dataFmt = vencimento.split("-").reverse().join("/");
-                                const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
-                                const msg = interpolate(
-                                    node.data.successMessage ||
-                                    `💳 *Seu Boleto em Aberto*
+                    // Prossegue com a consulta (agora com CPF obrigatoriamente >= 11 dígitos)
+                    const logins = await IxcService.listLogins(companyId, cpfValue);
+
+                    if (logins && logins.length > 1) {
+                        let msg = "🔍 *Identificamos mais de um acesso vinculado ao seu CPF.*\nQual deles você deseja consultar?\n";
+                        logins.forEach((l: any, i: number) => {
+                            const loginLabel = l.login || l.conexao || `Contrato ${l.id_contrato}`;
+                            const statusIcon = l.online === "S" ? "🟢" : "🔴";
+                            msg += `\n*${i + 1}* ${statusIcon} ${l.endereco}\n   🖥️ Login: ${loginLabel}`;
+                        });
+                        msg += "\n\nResponda com o número da opção desejada.";
+                        await socket.sendMessage(remoteJid, { text: msg });
+
+                        await redis.set(ixcStateKey, "waiting", "EX", 600);
+                        await redis.set(`ixcLogins:${ticketId}`, JSON.stringify(logins), "EX", 600);
+                        return nodeId;
+                    } else if (logins && logins.length === 1) {
+                        const result = await IxcService.getBoleto(companyId, "", logins[0].id_contrato);
+                        if (result.success && result.boleto) {
+                            const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
+                            const dataFmt = vencimento.split("-").reverse().join("/");
+                            const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
+                            const msg = interpolate(
+                                node.data.successMessage ||
+                                `💳 *Seu Boleto em Aberto*
 
 💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}
 📅 *Vencimento:* ${dataFmt}${hasLinha ? `
@@ -527,35 +545,35 @@ ${linhaDigitavel}` : ""}
 ${linhaDigitavel}` : ""}
 
 🗂️ O PDF do boleto foi enviado abaixo ↓`,
-                                    { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
-                                );
-                                await socket.sendMessage(remoteJid, { text: msg });
-                                // Enviar PDF do boleto
-                                try {
-                                    const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
-                                    if (pdfBuffer) {
-                                        await socket.sendMessage(remoteJid, {
-                                            document: pdfBuffer,
-                                            fileName: `boleto_venc_${vencimento}.pdf`,
-                                            mimetype: "application/pdf"
-                                        });
-                                    }
-                                } catch (pdfErr) {
-                                    console.error("[IXC PDF SEND]", pdfErr);
+                                { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
+                            );
+                            await socket.sendMessage(remoteJid, { text: msg });
+                            // Enviar PDF do boleto
+                            try {
+                                const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
+                                if (pdfBuffer) {
+                                    await socket.sendMessage(remoteJid, {
+                                        document: pdfBuffer,
+                                        fileName: `boleto_venc_${vencimento}.pdf`,
+                                        mimetype: "application/pdf"
+                                    });
                                 }
-                            } else {
-                                await socket.sendMessage(remoteJid, { text: result.message || "Não encontramos boletos em aberto." });
+                            } catch (pdfErr) {
+                                console.error("[IXC PDF SEND]", pdfErr);
                             }
                         } else {
-                            // Fallback caso não ache logins rad, tenta pelo CPF direto no cliente
-                            const result = await IxcService.getBoleto(companyId, cpfValue);
-                            if (result.success && result.boleto) {
-                                const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
-                                const dataFmt = vencimento.split("-").reverse().join("/");
-                                const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
-                                const msg = interpolate(
-                                    node.data.successMessage ||
-                                    `💳 *Seu Boleto em Aberto*
+                            await socket.sendMessage(remoteJid, { text: result.message || "Não encontramos boletos em aberto." });
+                        }
+                    } else {
+                        // Fallback caso não ache logins rad, tenta pelo CPF direto no cliente
+                        const result = await IxcService.getBoleto(companyId, cpfValue);
+                        if (result.success && result.boleto) {
+                            const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
+                            const dataFmt = vencimento.split("-").reverse().join("/");
+                            const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
+                            const msg = interpolate(
+                                node.data.successMessage ||
+                                `💳 *Seu Boleto em Aberto*
 
 💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}
 📅 *Vencimento:* ${dataFmt}${hasLinha ? `
@@ -564,28 +582,26 @@ ${linhaDigitavel}` : ""}
 ${linhaDigitavel}` : ""}
 
 🗂️ O PDF do boleto foi enviado abaixo ↓`,
-                                    ctx
-                                );
-                                await socket.sendMessage(remoteJid, { text: msg });
-                                // Enviar PDF do boleto
-                                try {
-                                    const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
-                                    if (pdfBuffer) {
-                                        await socket.sendMessage(remoteJid, {
-                                            document: pdfBuffer,
-                                            fileName: `boleto_venc_${vencimento}.pdf`,
-                                            mimetype: "application/pdf"
-                                        });
-                                    }
-                                } catch (pdfErr) {
-                                    console.error("[IXC PDF SEND]", pdfErr);
+                                ctx
+                            );
+                            await socket.sendMessage(remoteJid, { text: msg });
+                            // Enviar PDF do boleto
+                            try {
+                                const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
+                                if (pdfBuffer) {
+                                    await socket.sendMessage(remoteJid, {
+                                        document: pdfBuffer,
+                                        fileName: `boleto_venc_${vencimento}.pdf`,
+                                        mimetype: "application/pdf"
+                                    });
                                 }
-                            } else {
-                                await socket.sendMessage(remoteJid, { text: "❌ Não conseguimos localizar seu cadastro ou boletos em aberto." });
+                            } catch (pdfErr) {
+                                console.error("[IXC PDF SEND]", pdfErr);
                             }
+                        } else {
+                            await socket.sendMessage(remoteJid, { text: "❌ Não conseguimos localizar seu cadastro ou boletos em aberto com este CPF." });
+                            return nodeId; // Pausa para ele tentar outro CPF
                         }
-                    } else {
-                        await socket.sendMessage(remoteJid, { text: "⚠️ Por favor, informe um CPF válido para consulta." });
                     }
                 }
 
