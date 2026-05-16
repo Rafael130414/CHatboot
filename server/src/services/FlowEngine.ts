@@ -887,27 +887,72 @@ ${linhaDigitavel}` : ""}
                         return nodeId;
                     }
 
-                    // ── Ação: Ver DNS Atual ──
+                    // ── Ação: Ver DNS Atual (multi-path: suporta todos os firmwares FiberHome) ──
                     else if (chosenOpt.includes("Ver DNS")) {
                         await socket.sendMessage(remoteJid, { text: "🌐 *Consultando DNS configurado na sua rede...*" });
-                        // BUG FIX: usa query ao invés de /devices/{id} e acessa via [0]
-                        const dnsRes = await fetch(`${GENIEACS_URL}/devices?query=${encodeURIComponent(JSON.stringify({_id: deviceId}))}&projection=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement`);
-                        let priDns = "N/A", secDns = "N/A";
+
+                        // Força leitura dos parâmetros de DNS (GenieACS pode estar com cache antigo)
+                        await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: "getParameterValues", parameterNames: [
+                                "InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers",
+                                "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.DNSServers",
+                                "Device.DNS.Config.DNSServers", // TR-181 (modelos novos)
+                                "Device.DHCPv4.Server.Pool.1.DNSServers" // TR-181 DHCP
+                            ]})
+                        });
+                        await new Promise(r => setTimeout(r, 5000)); // Aguarda ONU responder
+
+                        // Busca tanto LAN quanto WAN de uma vez (firmwares diferentes usam paths diferentes)
+                        const dnsRes = await fetch(`${GENIEACS_URL}/devices?query=${encodeURIComponent(JSON.stringify({_id: deviceId}))}&projection=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1,Device.DNS,Device.DHCPv4`);
+                        let priDns = "N/A", secDns = "N/A", dnsSource = "";
+
                         if (dnsRes.ok) {
                             try {
                                 const dnsArr = await dnsRes.json();
                                 const dnsData = Array.isArray(dnsArr) ? dnsArr[0] : dnsArr;
-                                const dnsServers: string = dnsData?.InternetGatewayDevice?.LANDevice?.["1"]?.LANHostConfigManagement?.DNSServers?._value ?? "";
-                                const parts = dnsServers.split(",").map((s: string) => s.trim()).filter(Boolean);
+
+                                // CAMINHO 1: LAN DHCP (TR-098 — ex: FHTT99727FF0)
+                                const lanDns: string = dnsData?.InternetGatewayDevice?.LANDevice?.["1"]?.LANHostConfigManagement?.DNSServers?._value ?? "";
+
+                                // CAMINHO 2: WAN PPPoE (TR-098 — ex: FHTT9967AD18)
+                                const wanPpp = dnsData?.InternetGatewayDevice?.WANDevice?.["1"]?.WANConnectionDevice?.["1"]?.WANPPPConnection?.["1"] || {};
+                                const wanDns1: string = wanPpp?.DNSServers?._value ?? "";
+
+                                // CAMINHO 3: TR-181 (Modelos novos)
+                                const tr181Dns: string = dnsData?.Device?.DNS?.Config?.DNSServers?._value 
+                                                      || dnsData?.Device?.DHCPv4?.Server?.Pool?.["1"]?.DNSServers?._value 
+                                                      || "";
+
+                                // Prioriza LAN se tiver valor; caso contrário tenta TR-181 e por fim WAN
+                                let rawDns = "";
+                                if (lanDns && lanDns.trim() && lanDns !== "0.0.0.0") {
+                                    rawDns = lanDns;
+                                    dnsSource = "LAN (DHCP)";
+                                } else if (tr181Dns && tr181Dns.trim() && tr181Dns !== "0.0.0.0") {
+                                    rawDns = tr181Dns;
+                                    dnsSource = "LAN (TR-181)";
+                                } else if (wanDns1 && wanDns1.trim() && wanDns1 !== "0.0.0.0") {
+                                    rawDns = wanDns1;
+                                    dnsSource = "WAN (PPPoE)";
+                                }
+
+                                const parts = rawDns.split(",").map((s: string) => s.trim()).filter(Boolean);
                                 priDns = parts[0] || "N/A";
                                 secDns = parts[1] || "N/A";
                             } catch (_) {}
                         }
+
                         await socket.sendMessage(remoteJid, { text:
-                            `🌐 *DNS Configurado na sua Rede*\n\n` +
-                            `🔵 *DNS Primário:* ${priDns}\n` +
-                            `🔵 *DNS Secundário:* ${secDns}\n\n` +
-                            `_Este é o DNS que sua ONU entrega para os dispositivos da rede local._`
+                            priDns !== "N/A"
+                            ? `🌐 *DNS Configurado na sua Rede*\n\n` +
+                              `🔵 *DNS Primário:* ${priDns}\n` +
+                              `🔵 *DNS Secundário:* ${secDns}\n` +
+                              `📍 *Origem:* ${dnsSource || "N/A"}\n\n` +
+                              `_Este é o DNS que sua ONU entrega para os dispositivos da rede local._`
+                            : `🌐 *DNS da sua Rede*\n\n` +
+                              `ℹ️ O DNS desta ONU é atribuído automaticamente pelo provedor via PPPoE e não pode ser consultado remotamente.\n\n` +
+                              `_Para alterar o DNS, utilize a opção "Alterar DNS" do menu._`
                         });
                     }
 
