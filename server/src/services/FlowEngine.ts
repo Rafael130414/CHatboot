@@ -610,6 +610,249 @@ ${linhaDigitavel}` : ""}
                 return null;
             }
 
+            // ── TR-069 NODE ──────────────────────────────────
+            if (node.type === "tr069Node") {
+                const GENIEACS_URL = "http://37.148.134.48:7557";
+                const cpfVar = node.data.cpfVariable || "cpf";
+                const askMsg = node.data.askCpfMessage || "Por favor, informe seu *CPF* para acessar as opções da sua conexão:";
+
+                const tr069StateKey = `tr069State:${ticketId}:${nodeId}`;
+                const tr069State = await redis.get(tr069StateKey);
+                const tr069Data = tr069State ? JSON.parse(tr069State) : {};
+
+                // ──── FASE 1: Obter CPF ────────────────────────
+                if (!tr069Data.cpf) {
+                    let cpfValue = ctx.variables[cpfVar] || "";
+                    if (inputMsg) cpfValue = inputMsg;
+
+                    const cleanCpf = cpfValue.replace(/\D/g, "");
+                    if (cleanCpf.length < 11) {
+                        if (inputMsg) await socket.sendMessage(remoteJid, { text: "⚠️ CPF inválido. Por favor, informe os 11 dígitos." });
+                        else await socket.sendMessage(remoteJid, { text: askMsg });
+                        await redis.set(tr069StateKey, JSON.stringify({ phase: "awaiting_cpf" }), "EX", 600);
+                        return nodeId;
+                    }
+
+                    // Buscar contratos no IXC
+                    const logins = await IxcService.listLogins(companyId, cleanCpf);
+                    if (!logins || logins.length === 0) {
+                        await socket.sendMessage(remoteJid, { text: "❌ CPF não encontrado no sistema. Verifique os dados e tente novamente." });
+                        await redis.del(tr069StateKey);
+                        return nodeId;
+                    }
+
+                    if (logins.length > 1) {
+                        let menuMsg = "🔍 *Identificamos mais de uma conexão no seu CPF.*\nQual você deseja gerenciar?\n";
+                        logins.forEach((l: any, i: number) => {
+                            const statusIcon = l.online === "S" ? "🟢" : "🔴";
+                            menuMsg += `\n*${i + 1}* ${statusIcon} ${l.endereco || `Conexão ${i + 1}`}\n   🖥️ Login: ${l.login}`;
+                        });
+                        menuMsg += "\n\nResponda com o número da opção:";
+                        await socket.sendMessage(remoteJid, { text: menuMsg });
+                        await redis.set(tr069StateKey, JSON.stringify({ phase: "awaiting_contract", cpf: cleanCpf, logins }), "EX", 600);
+                        return nodeId;
+                    }
+
+                    // Contrato único — avança direto
+                    await redis.set(tr069StateKey, JSON.stringify({ phase: "awaiting_action", cpf: cleanCpf, pppoe: logins[0].login }), "EX", 600);
+                    // Cai no próximo if via re-execução
+                    return await executeNode(nodeId, "");
+                }
+
+                // ──── FASE 2: Seleção de contrato (múltiplos) ──
+                if (tr069Data.phase === "awaiting_contract" && inputMsg) {
+                    const choice = parseInt(inputMsg.trim()) - 1;
+                    const logins = tr069Data.logins || [];
+                    if (isNaN(choice) || !logins[choice]) {
+                        await socket.sendMessage(remoteJid, { text: "❌ Opção inválida. Digite o número da conexão." });
+                        return nodeId;
+                    }
+                    const selected = logins[choice];
+                    await redis.set(tr069StateKey, JSON.stringify({ phase: "awaiting_action", cpf: tr069Data.cpf, pppoe: selected.login }), "EX", 600);
+                    return await executeNode(nodeId, "");
+                }
+
+                // ──── FASE 3: Exibir menu de ações ─────────────
+                if (tr069Data.phase === "awaiting_action" && !inputMsg) {
+                    const opts: string[] = [];
+                    if (node.data.showSignal !== false) opts.push("📶 Verificar Sinal Ótico");
+                    if (node.data.showReboot !== false) opts.push("🔁 Reiniciar Roteador");
+                    if (node.data.showWifiName !== false) opts.push("📡 Alterar Nome do WiFi");
+                    if (node.data.showWifiPass !== false) opts.push("🔒 Alterar Senha do WiFi");
+
+                    let menuMsg = `⚙️ *Gestão da sua Conexão*\n*Login:* ${tr069Data.pppoe}\n\nO que você deseja fazer?\n`;
+                    opts.forEach((o, i) => { menuMsg += `\n*${i + 1}.* ${o}`; });
+                    await socket.sendMessage(remoteJid, { text: menuMsg });
+
+                    const newState = { ...tr069Data, phase: "awaiting_action_choice", opts };
+                    await redis.set(tr069StateKey, JSON.stringify(newState), "EX", 600);
+                    return nodeId;
+                }
+
+                // ──── FASE 4: Executar ação escolhida ──────────
+                if (tr069Data.phase === "awaiting_action_choice" && inputMsg) {
+                    const choice = parseInt(inputMsg.trim()) - 1;
+                    const opts = tr069Data.opts || [];
+                    const pppoe = tr069Data.pppoe;
+
+                    if (isNaN(choice) || !opts[choice]) {
+                        await socket.sendMessage(remoteJid, { text: "❌ Opção inválida. Digite o número da ação desejada." });
+                        return nodeId;
+                    }
+
+                    const chosenOpt: string = opts[choice];
+
+                    // Buscar o device no GenieACS pelo PPPoE
+                    const devRes = await fetch(`${GENIEACS_URL}/devices?projection=_id,InternetGatewayDevice.WANDevice,Device.WANDevice,InternetGatewayDevice.LANDevice,Device.LANDevice`);
+                    const devices: any[] = devRes.ok ? await devRes.json() : [];
+
+                    // Procurar a ONU que tem esse PPPoE
+                    let deviceId: string | null = null;
+                    const findUsername = (obj: any): string | null => {
+                        if (!obj || typeof obj !== "object") return null;
+                        if (obj.Username?._value) return obj.Username._value;
+                        for (const k of Object.keys(obj)) {
+                            const r = findUsername(obj[k]);
+                            if (r) return r;
+                        }
+                        return null;
+                    };
+                    for (const d of devices) {
+                        const u = findUsername(d);
+                        if (u && u.toLowerCase() === pppoe.toLowerCase()) {
+                            deviceId = d._id;
+                            break;
+                        }
+                    }
+
+                    if (!deviceId) {
+                        await socket.sendMessage(remoteJid, { text: `⚠️ Não encontramos sua ONU ativa no sistema de gerência. Tente novamente em instantes.` });
+                        await redis.del(tr069StateKey);
+                        const edge = edges.find((e: any) => e.source === nodeId);
+                        if (edge) return await executeNode(edge.target);
+                        return null;
+                    }
+
+                    // ── Ação: Verificar Sinal ──
+                    if (chosenOpt.includes("Sinal")) {
+                        await socket.sendMessage(remoteJid, { text: "📡 *Consultando sinal da sua ONU...*\nAguarde um momento." });
+                        // Summon (forçar inform imediato)
+                        await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: "getParameterValues", parameterNames: [
+                                "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.RXPower",
+                                "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.TXPower",
+                                "InternetGatewayDevice.WANDevice.1.WANCommonInterfaceConfig.PhysicalLinkStatus"
+                            ]})
+                        });
+                        await new Promise(r => setTimeout(r, 4000));
+
+                        // Re-buscar o device com parâmetros de sinal
+                        const sigRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.WANDevice`);
+                        let rxPower = "N/A", txPower = "N/A", linkStatus = "N/A";
+                        if (sigRes.ok) {
+                            try {
+                                const sigData = await sigRes.json();
+                                const wan = sigData?.InternetGatewayDevice?.WANDevice?.["1"] || {};
+                                rxPower = wan?.WANPONInterfaceConfig?.RXPower?._value ?? "N/A";
+                                txPower = wan?.WANPONInterfaceConfig?.TXPower?._value ?? "N/A";
+                                linkStatus = wan?.WANCommonInterfaceConfig?.PhysicalLinkStatus?._value ?? "N/A";
+                            } catch (_) {}
+                        }
+
+                        const signalEmoji = rxPower !== "N/A" && parseFloat(rxPower) > -27 ? "🟢" : rxPower !== "N/A" ? "🔴" : "⚪";
+                        await socket.sendMessage(remoteJid, { text:
+                            `📶 *Relatório de Sinal Ótico*\n\n` +
+                            `${signalEmoji} *RX Power (Recepção):* ${rxPower} dBm\n` +
+                            `📤 *TX Power (Transmissão):* ${txPower} dBm\n` +
+                            `🔗 *Status do Link:* ${linkStatus}\n\n` +
+                            `_Referência: Sinal saudável entre -8 e -27 dBm_`
+                        });
+                    }
+
+                    // ── Ação: Reiniciar Roteador ──
+                    else if (chosenOpt.includes("Reiniciar")) {
+                        await socket.sendMessage(remoteJid, { text: "🔁 *Reiniciando seu roteador...*\nSua internet ficará indisponível por aproximadamente 1 minuto." });
+                        await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: "reboot" })
+                        });
+                        await socket.sendMessage(remoteJid, { text: "✅ *Comando enviado com sucesso!*\nSeu roteador está reiniciando. Aguarde cerca de 60 segundos para a reconexão." });
+                    }
+
+                    // ── Ação: Alterar Nome WiFi ──
+                    else if (chosenOpt.includes("Nome do WiFi")) {
+                        await socket.sendMessage(remoteJid, { text: "📡 *Alteração de Nome do WiFi*\n\nDigite o *novo nome* que você quer colocar na sua rede WiFi:" });
+                        const newState = { ...tr069Data, phase: "awaiting_wifi_ssid", deviceId };
+                        await redis.set(tr069StateKey, JSON.stringify(newState), "EX", 600);
+                        return nodeId;
+                    }
+
+                    // ── Ação: Alterar Senha WiFi ──
+                    else if (chosenOpt.includes("Senha do WiFi")) {
+                        await socket.sendMessage(remoteJid, { text: "🔒 *Alteração de Senha do WiFi*\n\nDigite a *nova senha* da sua rede WiFi (mínimo 8 caracteres):" });
+                        const newState = { ...tr069Data, phase: "awaiting_wifi_pass", deviceId };
+                        await redis.set(tr069StateKey, JSON.stringify(newState), "EX", 600);
+                        return nodeId;
+                    }
+
+                    await redis.del(tr069StateKey);
+                    const edge = edges.find((e: any) => e.source === nodeId);
+                    if (edge) return await executeNode(edge.target);
+                    return null;
+                }
+
+                // ──── FASE 5A: Receber novo SSID e aplicar ──────
+                if (tr069Data.phase === "awaiting_wifi_ssid" && inputMsg) {
+                    const newSsid = inputMsg.trim();
+                    if (newSsid.length < 1 || newSsid.length > 32) {
+                        await socket.sendMessage(remoteJid, { text: "⚠️ Nome inválido. Deve ter entre 1 e 32 caracteres." });
+                        return nodeId;
+                    }
+                    await socket.sendMessage(remoteJid, { text: `⏳ Aplicando o novo nome *"${newSsid}"*...` });
+                    await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(tr069Data.deviceId)}/tasks?connection_request`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: "setParameterValues", parameterValues: [
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID", newSsid, "xsd:string"],
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID", `${newSsid}_5G`, "xsd:string"]
+                        ]})
+                    });
+                    await socket.sendMessage(remoteJid, { text: `✅ *Nome do WiFi alterado com sucesso!*\n\n📡 Nome 2.4GHz: *${newSsid}*\n📡 Nome 5GHz: *${newSsid}_5G*\n\n_Aguarde alguns segundos para a rede aparecer com o novo nome._` });
+                    await redis.del(tr069StateKey);
+                    const edge = edges.find((e: any) => e.source === nodeId);
+                    if (edge) return await executeNode(edge.target);
+                    return null;
+                }
+
+                // ──── FASE 5B: Receber nova senha e aplicar ─────
+                if (tr069Data.phase === "awaiting_wifi_pass" && inputMsg) {
+                    const newPass = inputMsg.trim();
+                    if (newPass.length < 8) {
+                        await socket.sendMessage(remoteJid, { text: "⚠️ Senha muito curta. Mínimo 8 caracteres." });
+                        return nodeId;
+                    }
+                    await socket.sendMessage(remoteJid, { text: `⏳ Aplicando nova senha...` });
+                    await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(tr069Data.deviceId)}/tasks?connection_request`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: "setParameterValues", parameterValues: [
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase", newPass, "xsd:string"],
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.KeyPassphrase", newPass, "xsd:string"]
+                        ]})
+                    });
+                    await socket.sendMessage(remoteJid, { text: `✅ *Senha do WiFi alterada com sucesso!*\n\n🔒 Nova senha: *${newPass}*\n\n_Conecte seus dispositivos com a nova senha._` });
+                    await redis.del(tr069StateKey);
+                    const edge = edges.find((e: any) => e.source === nodeId);
+                    if (edge) return await executeNode(edge.target);
+                    return null;
+                }
+
+                // Fallback — limpa estado e avança
+                await redis.del(tr069StateKey);
+                const edge613 = edges.find((e: any) => e.source === nodeId);
+                if (edge613) return await executeNode(edge613.target);
+                return null;
+            }
+
             // ── END NODE ─────────────────────────────────────
             if (node.type === "endNode") {
                 await prisma.ticket.update({ where: { id: ticketId }, data: { status: "closed" } });
