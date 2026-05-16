@@ -694,7 +694,8 @@ ${linhaDigitavel}` : ""}
                     const opts: string[] = [];
                     if (node.data.showSignal !== false && isONU) opts.push("📶 Verificar Sinal Ótico");
                     if (node.data.showReboot !== false) opts.push("🔁 Reiniciar Dispositivo");
-                    if (node.data.showWifiName !== false) opts.push("📡 Alterar Nome do WiFi");
+                    opts.push("📡 Ver WiFi (SSID e Senha)");
+                    if (node.data.showWifiName !== false) opts.push("✏️ Alterar Nome do WiFi");
                     if (node.data.showWifiPass !== false) opts.push("🔒 Alterar Senha do WiFi");
                     opts.push("🌐 Ver DNS Atual");
                     opts.push("⚙️ Alterar DNS");
@@ -814,6 +815,60 @@ ${linhaDigitavel}` : ""}
                             body: JSON.stringify({ name: "reboot" })
                         });
                         await socket.sendMessage(remoteJid, { text: "✅ *Comando enviado com sucesso!*\nSeu roteador está reiniciando. Aguarde cerca de 60 segundos para a reconexão." });
+                    }
+
+                    // ── Ação: Ver WiFi (SSID e Senha) ──
+                    else if (chosenOpt.includes("Ver WiFi")) {
+                        await socket.sendMessage(remoteJid, { text: "📡 *Consultando dados do WiFi...*" });
+
+                        // Força leitura dos parâmetros de WiFi
+                        await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: "getParameterValues", parameterNames: [
+                                "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
+                                "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
+                                "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.KeyPassphrase",
+                                "InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID",
+                                "InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.KeyPassphrase",
+                                "InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.PreSharedKey.1.KeyPassphrase"
+                            ]})
+                        });
+                        await new Promise(r => setTimeout(r, 5000));
+
+                        // Lê os valores do GenieACS
+                        const wifiRes = await fetch(`${GENIEACS_URL}/devices?query=${encodeURIComponent(JSON.stringify({_id: deviceId}))}&projection=InternetGatewayDevice.LANDevice.1.WLANConfiguration`);
+                        let ssid24 = "N/A", pass24 = "N/A", ssid5g = "N/A", pass5g = "N/A";
+
+                        if (wifiRes.ok) {
+                            try {
+                                const wifiArr = await wifiRes.json();
+                                const wifiData = Array.isArray(wifiArr) ? wifiArr[0] : wifiArr;
+                                const wlan = wifiData?.InternetGatewayDevice?.LANDevice?.["1"]?.WLANConfiguration || {};
+
+                                // 2.4GHz — índice 1
+                                ssid24 = wlan?.["1"]?.SSID?._value ?? "N/A";
+                                pass24 = wlan?.["1"]?.KeyPassphrase?._value
+                                      || wlan?.["1"]?.PreSharedKey?.["1"]?.KeyPassphrase?._value
+                                      || "N/A";
+
+                                // 5GHz — índice 5 (FiberHome HG6143D)
+                                ssid5g = wlan?.["5"]?.SSID?._value ?? "N/A";
+                                pass5g = wlan?.["5"]?.KeyPassphrase?._value
+                                      || wlan?.["5"]?.PreSharedKey?.["1"]?.KeyPassphrase?._value
+                                      || "N/A";
+                            } catch (_) {}
+                        }
+
+                        await socket.sendMessage(remoteJid, { text:
+                            `📡 *Dados do seu WiFi*\n\n` +
+                            `🟡 *Rede 2.4 GHz*\n` +
+                            `📝 Nome (SSID): *${ssid24}*\n` +
+                            `🔑 Senha: *${pass24}*\n\n` +
+                            `🟣 *Rede 5 GHz*\n` +
+                            `📝 Nome (SSID): *${ssid5g}*\n` +
+                            `🔑 Senha: *${pass5g}*\n\n` +
+                            `⚠️ _Por segurança, não compartilhe esta mensagem._`
+                        });
                     }
 
                     // ── Ação: Alterar Nome WiFi ──
