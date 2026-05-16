@@ -995,7 +995,9 @@ ${linhaDigitavel}` : ""}
                         method: "POST", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ name: "setParameterValues", parameterValues: [
                             ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID", newSsid, "xsd:string"],
-                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID", `${newSsid}_5G`, "xsd:string"]
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID", `${newSsid}_5G`, "xsd:string"],
+                            ["Device.WiFi.SSID.1.SSID", newSsid, "xsd:string"],
+                            ["Device.WiFi.SSID.5.SSID", `${newSsid}_5G`, "xsd:string"]
                         ]})
                     });
                     await socket.sendMessage(remoteJid, { text: `✅ *Nome do WiFi alterado com sucesso!*\n\n📡 Nome 2.4GHz: *${newSsid}*\n📡 Nome 5GHz: *${newSsid}_5G*\n\n_Aguarde alguns segundos para a rede aparecer com o novo nome._` });
@@ -1016,7 +1018,11 @@ ${linhaDigitavel}` : ""}
                         method: "POST", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ name: "setParameterValues", parameterValues: [
                             ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase", newPass, "xsd:string"],
-                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.KeyPassphrase", newPass, "xsd:string"]
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.KeyPassphrase", newPass, "xsd:string"],
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.KeyPassphrase", newPass, "xsd:string"],
+                            ["InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.PreSharedKey.1.KeyPassphrase", newPass, "xsd:string"],
+                            ["Device.WiFi.AccessPoint.1.Security.KeyPassphrase", newPass, "xsd:string"],
+                            ["Device.WiFi.AccessPoint.5.Security.KeyPassphrase", newPass, "xsd:string"]
                         ]})
                     });
                     await socket.sendMessage(remoteJid, { text: `✅ *Senha do WiFi alterada com sucesso!*\n\n🔒 Nova senha: *${newPass}*\n\n_Conecte seus dispositivos com a nova senha._` });
@@ -1047,7 +1053,10 @@ ${linhaDigitavel}` : ""}
                     await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(tr069Data.deviceId)}/tasks?connection_request`, {
                         method: "POST", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ name: "setParameterValues", parameterValues: [
-                            ["InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers", `${priDns},${secDns}`, "xsd:string"]
+                            ["InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers", `${priDns},${secDns}`, "xsd:string"],
+                            ["InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.DNSServers", `${priDns},${secDns}`, "xsd:string"],
+                            ["Device.DNS.Config.DNSServers", `${priDns},${secDns}`, "xsd:string"],
+                            ["Device.DHCPv4.Server.Pool.1.DNSServers", `${priDns},${secDns}`, "xsd:string"]
                         ]})
                     });
                     await socket.sendMessage(remoteJid, { text:
@@ -1087,7 +1096,10 @@ ${linhaDigitavel}` : ""}
                     await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(tr069Data.deviceId)}/tasks?connection_request`, {
                         method: "POST", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ name: "setParameterValues", parameterValues: [
-                            ["InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers", `${priDns},${secDns}`, "xsd:string"]
+                            ["InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers", `${priDns},${secDns}`, "xsd:string"],
+                            ["InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.DNSServers", `${priDns},${secDns}`, "xsd:string"],
+                            ["Device.DNS.Config.DNSServers", `${priDns},${secDns}`, "xsd:string"],
+                            ["Device.DHCPv4.Server.Pool.1.DNSServers", `${priDns},${secDns}`, "xsd:string"]
                         ]})
                     });
                     await socket.sendMessage(remoteJid, { text:
