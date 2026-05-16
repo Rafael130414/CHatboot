@@ -157,6 +157,58 @@ export class IxcService {
         }
     }
 
+    static async getClientNameByPppoe(companyId: number, login: string) {
+        try {
+            let { url, token } = await this.getConfigs(companyId);
+            if (!url.startsWith("http")) url = `https://${url}`;
+            const auth = Buffer.from(token).toString("base64");
+
+            // 1. Buscar RadUsuario pelo login
+            const radRes = await fetch(`${url}/webservice/v1/radusuarios`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${auth}`,
+                    "ixcsoft": "listar"
+                },
+                body: JSON.stringify({
+                    qtype: "radusuarios.login",
+                    query: login,
+                    oper: "=",
+                    page: "1",
+                    rp: "1"
+                })
+            });
+            const radData = await radRes.json();
+            if (!radData.registros || radData.registros.length === 0) return null;
+            const clientId = radData.registros[0].id_cliente;
+
+            // 2. Buscar Cliente pelo id_cliente
+            const clientRes = await fetch(`${url}/webservice/v1/cliente`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${auth}`,
+                    "ixcsoft": "listar"
+                },
+                body: JSON.stringify({
+                    qtype: "cliente.id",
+                    query: clientId,
+                    oper: "=",
+                    page: "1",
+                    rp: "1"
+                })
+            });
+            const clientData = await clientRes.json();
+            if (!clientData.registros || clientData.registros.length === 0) return null;
+
+            return clientData.registros[0].razao;
+        } catch (e) {
+            console.error("[IXC getClientNameByPppoe error]", e);
+            return null;
+        }
+    }
+
     static async getBoletoPDF(companyId: number, boletoId: string): Promise<Buffer | null> {
         try {
             let { url, token } = await this.getConfigs(companyId);

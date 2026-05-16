@@ -5,6 +5,7 @@ import path from "path";
 import express from "express";
 import tagRoutes from "./routes/TagRoutes.js";
 import { initIO } from "./libs/socket.js";
+import { GenieACSSyncService } from "./services/GenieACSSyncService.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -51,5 +52,14 @@ server.listen(Number(PORT), "0.0.0.0", async () => {
             logger.error(`Failed to initialize session ${whatsapp.id}:`, err);
         }
     }
-});
 
+    // Iniciar Job de Sincronização TR-069
+    logger.info("Iniciando Job de Sincronização GenieACS TR-069...");
+    // Rodar imediatamente
+    GenieACSSyncService.syncDevices().catch(err => logger.error("Erro no sync inicial do GenieACS", err));
+
+    // Rodar a cada 30 minutos
+    setInterval(() => {
+        GenieACSSyncService.syncDevices().catch(err => logger.error("Erro no sync do GenieACS", err));
+    }, 30 * 60 * 1000);
+});
