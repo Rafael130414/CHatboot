@@ -68,7 +68,11 @@ export default function SettingsPage() {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(`${API_URL}/settings/schedules`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
+                cache: 'no-store'
             });
             const data = await res.json();
             if (Array.isArray(data)) setSchedules(data);
@@ -81,7 +85,11 @@ export default function SettingsPage() {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(`${API_URL}/settings/bot`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
+                cache: 'no-store'
             });
             const data = await res.json();
             if (data) {
@@ -138,7 +146,11 @@ export default function SettingsPage() {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(`${API_URL}/ai/config`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
+                cache: 'no-store'
             });
             const data = await res.json();
             if (data && data.id) {
@@ -176,7 +188,11 @@ export default function SettingsPage() {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(`${API_URL}/settings/ixc`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
+                cache: 'no-store'
             });
             const data = await res.json();
             if (data) {

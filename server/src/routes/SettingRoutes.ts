@@ -80,9 +80,12 @@ settingRoutes.get("/bot", isAuth, async (req, res) => {
 settingRoutes.put("/bot", isAuth, async (req, res) => {
     const { antiBanDelay } = req.body;
 
+    let delay = parseInt(String(antiBanDelay), 10);
+    if (isNaN(delay) || delay < 500) delay = 2000;
+
     const company = await prisma.company.update({
         where: { id: req.user.companyId },
-        data: { antiBanDelay: Number(antiBanDelay) || 2000 }
+        data: { antiBanDelay: delay }
     });
 
     return res.json({ success: true, company });
