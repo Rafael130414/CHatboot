@@ -37,18 +37,37 @@ export class GenieACSSyncService {
                 let pppoe = null;
                 let currentClientName = null;
 
-                // Extrair PPPoE para TR-098 (InternetGatewayDevice) ou TR-181 (Device)
-                try { pppoe = d.InternetGatewayDevice.WANDevice["1"].WANConnectionDevice["1"].WANPPPConnection["1"].Username._value; } catch (e) { }
-                if (!pppoe) {
-                    try { pppoe = d.Device.WANDevice["1"].WANConnectionDevice["1"].WANPPPConnection["1"].Username._value; } catch (e) { }
-                }
+                // Função auxiliar para buscar qualquer Username._value de dentro do objeto
+                const findUsername = (obj: any): string | null => {
+                    if (!obj || typeof obj !== 'object') return null;
+                    if (obj.Username && obj.Username._value) return obj.Username._value;
+                    for (const key of Object.keys(obj)) {
+                        const found = findUsername(obj[key]);
+                        if (found) return found;
+                    }
+                    return null;
+                };
 
-                // Extrair Nome Atual que já está salvo no GenieACS
-                try { currentClientName = d.VirtualParameters.ClientName._value; } catch (e) { }
+                // Função auxiliar para buscar ProvisioningCode._value
+                const findProvCode = (obj: any): string | null => {
+                    if (!obj || typeof obj !== 'object') return null;
+                    if (obj.ProvisioningCode && obj.ProvisioningCode._value) return obj.ProvisioningCode._value;
+                    for (const key of Object.keys(obj)) {
+                        const found = findProvCode(obj[key]);
+                        if (found) return found;
+                    }
+                    return null;
+                };
+
+                pppoe = findUsername(d);
+                currentClientName = findProvCode(d);
+
+                console.log(`[GenieACSSync] Dispositivo: ${id} | Encontrado PPPoE: ${pppoe} | Nome Atual: ${currentClientName}`);
 
                 if (pppoe && pppoe.trim() !== "") {
                     // Buscar o nome no IXC
                     const ixcName = await IxcService.getClientNameByPppoe(company.id, pppoe);
+                    console.log(`[GenieACSSync] IXC retornou: ${ixcName} para o PPPoE: ${pppoe}`);
 
                     if (ixcName) {
                         // Verifica se o nome precisa ser atualizado no GenieACS
