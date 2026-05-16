@@ -328,6 +328,29 @@ const HTTPNode = makeNode("#06b6d4", "rgba(6,182,212,0.25)", Globe, "HTTP Reques
 const SetVariableNode = makeNode("#eab308", "rgba(234,179,8,0.25)", Variable, "Definir Variável", d => d.varName ? `{{${d.varName}}} = ${d.varValue || ""}` : "Configure a variável...");
 const TagNode = makeNode("#10b981", "rgba(16,185,129,0.25)", TagIcon, "Adicionar Tag", d => d.tagName || "Nome da tag...");
 
+const IxcBoletoNode = ({ data, selected }: NodeProps) => (
+    <div className={`${nBase} p-5 relative overflow-visible`} style={{
+        background: "rgba(10,22,40,0.95)",
+        border: `2px solid ${selected ? "#8b5cf6" : "rgba(139,92,246,0.3)"}`,
+        boxShadow: selected ? "0 0 40px rgba(139,92,246,0.4)" : "0 8px 32px rgba(0,0,0,0.3)"
+    }}>
+        <Handle type="target" position={Position.Top} className="!bg-[#8b5cf6] !w-3.5 !h-3.5 !border-2 !border-[#060D1A]" />
+        <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #8b5cf6, #3b82f6)" }}>
+                <FileText className="w-4 h-4 text-white" />
+            </div>
+            <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-purple-400">IXC Financeiro</span>
+                <div className="h-0.5 w-8 rounded-full bg-purple-500 mt-0.5" />
+            </div>
+        </div>
+        <div className="p-2 rounded-lg bg-black/20 border border-white/5">
+            <p className="text-[10px] text-slate-400">Busca boletos pelo CPF e gerencia múltiplos contratos.</p>
+        </div>
+        <Handle type="source" position={Position.Bottom} className="!bg-[#8b5cf6] !w-3.5 !h-3.5 !border-2 !border-[#060D1A]" />
+    </div>
+);
+
 const nodeTypes = {
     startNode: StartNode, messageNode: MessageNode, menuNode: MenuNode,
     transferNode: TransferNode, endNode: EndNode, delayNode: DelayNode,
@@ -335,6 +358,7 @@ const nodeTypes = {
     imageNode: ImageNode, audioNode: AudioNode, documentNode: DocumentNode,
     httpNode: HTTPNode, setVariableNode: SetVariableNode, tagNode: TagNode,
     switchNode: SwitchNode, loopNode: LoopNode,
+    ixcBoletoNode: IxcBoletoNode,
 };
 
 // ── Painel de Edição do Nó ──────────────────────────
@@ -359,7 +383,8 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
         messageNode: "#00c9a7", menuNode: "#3b82f6", delayNode: "#06b6d4",
         conditionNode: "#f59e0b", switchNode: "#f59e0b", loopNode: "#0ea5e9", aiNode: "#a855f7", transferNode: "#8b5cf6", endNode: "#ef4444",
         imageNode: "#ec4899", audioNode: "#f97316", documentNode: "#64748b",
-        httpNode: "#06b6d4", setVariableNode: "#eab308", tagNode: "#10b981"
+        httpNode: "#06b6d4", setVariableNode: "#eab308", tagNode: "#10b981",
+        ixcBoletoNode: "#8b5cf6"
     };
     const color = nodeColors[node.type || ""] || "#00c9a7";
 
@@ -703,6 +728,31 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
                         <input style={inputStyle} value={d.tagName || ""} placeholder="Ex: Lead Qualificado"
                             onChange={e => onUpdate(node.id, { ...d, tagName: e.target.value })} />
                         <p className="text-[10px] text-slate-600 mt-1.5">A tag será adicionada automaticamente ao contato</p>
+                    </div>
+                )}
+
+                {node.type === "ixcBoletoNode" && (
+                    <div className="space-y-4">
+                        <div>
+                            <label style={labelStyle}>Variável do CPF</label>
+                            <input style={inputStyle} value={d.cpfVariable || "cpf"} placeholder="Variável onde está o CPF..."
+                                onChange={e => onUpdate(node.id, { ...d, cpfVariable: e.target.value })} />
+                            <p className="text-[10px] text-slate-600 mt-1.5">Se vazio, usará o texto da última mensagem do cliente.</p>
+                        </div>
+                        <div>
+                            <label style={labelStyle}>Mensagem de Sucesso (Personalizada)</label>
+                            <textarea rows={4} style={{ ...inputStyle, resize: "none" }}
+                                value={d.successMessage || ""}
+                                placeholder="Deixe vazio para usar a mensagem padrão do sistema..."
+                                onChange={e => onUpdate(node.id, { ...d, successMessage: e.target.value })} />
+                            <p className="text-[10px] text-slate-600 mt-1.5">Use variáveis: {"{{link_boleto, linha_boleto}}"}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                            <p className="text-[10px] text-purple-400 font-bold mb-1">⚙️ Comportamento</p>
+                            <p className="text-[10px] text-slate-500 leading-tight">
+                                Este nó solicita automaticamente o CPF, lista endereços se houver múltiplos logins e envia o boleto.
+                            </p>
+                        </div>
                     </div>
                 )}
 
@@ -1224,6 +1274,7 @@ export default function FlowbuilderPage() {
             httpNode: { method: "GET", url: "", headers: '{"Content-Type":"application/json"}', body: "", saveToVar: "resposta" },
             setVariableNode: { varName: "", varValue: "" },
             tagNode: { tagName: "" },
+            ixcBoletoNode: { cpfVariable: "cpf", successMessage: "" },
         };
         const newNode: Node = {
             id: `${type}-${Date.now()}`, type,
@@ -1298,6 +1349,7 @@ export default function FlowbuilderPage() {
                 { type: "aiNode", icon: BrainCircuit, label: "IA", color: "#a855f7", desc: "Resposta com IA" },
                 { type: "httpNode", icon: Globe, label: "HTTP Request", color: "#06b6d4", desc: "Chama API externa" },
                 { type: "tagNode", icon: TagIcon, label: "Tag", color: "#10b981", desc: "Adiciona tag ao contato" },
+                { type: "ixcBoletoNode", icon: FileText, label: "IXC Boleto", color: "#8b5cf6", desc: "Busca boleto e contratos" },
             ]
         },
     ];
