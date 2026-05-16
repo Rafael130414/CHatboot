@@ -19,7 +19,8 @@ export class IxcService {
 
     static async getBoleto(companyId: number, cpf: string, contractId?: string) {
         try {
-            const { url, token } = await this.getConfigs(companyId);
+            let { url, token } = await this.getConfigs(companyId);
+            if (!url.startsWith("http")) url = `https://${url}`;
             const auth = Buffer.from(token).toString("base64");
 
             // 1. Buscar Cliente pelo CPF (se não tiver contractId, precisamos do cliente)
@@ -34,8 +35,8 @@ export class IxcService {
                     },
                     body: JSON.stringify({
                         qtype: "cliente.cnpj_cpf",
-                        query: cpf.replace(/\D/g, ""),
-                        oper: "=",
+                        query: cpf.replace(/\D/g, "").split("").join("%"),
+                        oper: "L",
                         page: "1",
                         rp: "1"
                     })
@@ -103,7 +104,8 @@ export class IxcService {
 
     static async listLogins(companyId: number, cpf: string) {
         try {
-            const { url, token } = await this.getConfigs(companyId);
+            let { url, token } = await this.getConfigs(companyId);
+            if (!url.startsWith("http")) url = `https://${url}`;
             const auth = Buffer.from(token).toString("base64");
 
             // 1. Buscar Cliente
@@ -116,8 +118,8 @@ export class IxcService {
                 },
                 body: JSON.stringify({
                     qtype: "cliente.cnpj_cpf",
-                    query: cpf.replace(/\D/g, ""),
-                    oper: "=",
+                    query: cpf.replace(/\D/g, "").split("").join("%"),
+                    oper: "L",
                     page: "1",
                     rp: "1"
                 })
