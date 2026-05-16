@@ -803,8 +803,11 @@ ${linhaDigitavel}` : ""}
                             `🌡️ *Temperatura:* ${temp !== "N/A" ? temp + " °C" : "N/A"}\n` +
                             `🔗 *Link Físico:* ${linkStatus}\n` +
                             `🌐 *PPPoE:* ${connStatus}\n\n` +
-                            `_Referência: Sinal saudável entre -8 e -27 dBm_`
+                            `_Referência: Sinal saudável entre -8 e -27 dBm_\n\n` +
+                            `↩️ Digite *0* para voltar ao menu.`
                         });
+                        await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_back_to_menu" }), "EX", 600);
+                        return nodeId;
                     }
 
                     // ── Ação: Reiniciar Roteador ──
@@ -815,6 +818,9 @@ ${linhaDigitavel}` : ""}
                             body: JSON.stringify({ name: "reboot" })
                         });
                         await socket.sendMessage(remoteJid, { text: "✅ *Comando enviado com sucesso!*\nSeu roteador está reiniciando. Aguarde cerca de 60 segundos para a reconexão." });
+                        // Volta para o menu
+                        await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_action" }), "EX", 600);
+                        return await executeNode(nodeId, "");
                     }
 
                     // ── Ação: Ver WiFi (SSID e Senha) ──
@@ -867,8 +873,11 @@ ${linhaDigitavel}` : ""}
                             `🟣 *Rede 5 GHz*\n` +
                             `📝 Nome (SSID): *${ssid5g}*\n` +
                             `🔑 Senha: *${pass5g}*\n\n` +
-                            `⚠️ _Por segurança, não compartilhe esta mensagem._`
+                            `⚠️ _Por segurança, não compartilhe esta mensagem._\n\n` +
+                            `↩️ Digite *0* para voltar ao menu.`
                         });
+                        await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_back_to_menu" }), "EX", 600);
+                        return nodeId;
                     }
 
                     // ── Ação: Alterar Nome WiFi ──
@@ -944,7 +953,7 @@ ${linhaDigitavel}` : ""}
                         }
 
                         await socket.sendMessage(remoteJid, { text:
-                            priDns !== "N/A"
+                            (priDns !== "N/A"
                             ? `🌐 *DNS Configurado na sua Rede*\n\n` +
                               `🔵 *DNS Primário:* ${priDns}\n` +
                               `🔵 *DNS Secundário:* ${secDns}\n` +
@@ -952,8 +961,11 @@ ${linhaDigitavel}` : ""}
                               `_Este é o DNS que sua ONU entrega para os dispositivos da rede local._`
                             : `🌐 *DNS da sua Rede*\n\n` +
                               `ℹ️ O DNS desta ONU é atribuído automaticamente pelo provedor via PPPoE e não pode ser consultado remotamente.\n\n` +
-                              `_Para alterar o DNS, utilize a opção "Alterar DNS" do menu._`
+                              `_Para alterar o DNS, utilize a opção "Alterar DNS" do menu._`) +
+                            `\n\n↩️ Digite *0* para voltar ao menu.`
                         });
+                        await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_back_to_menu" }), "EX", 600);
+                        return nodeId;
                     }
 
                     // ── Ação: Alterar DNS ──
@@ -987,10 +999,9 @@ ${linhaDigitavel}` : ""}
                         ]})
                     });
                     await socket.sendMessage(remoteJid, { text: `✅ *Nome do WiFi alterado com sucesso!*\n\n📡 Nome 2.4GHz: *${newSsid}*\n📡 Nome 5GHz: *${newSsid}_5G*\n\n_Aguarde alguns segundos para a rede aparecer com o novo nome._` });
-                    await redis.del(tr069StateKey);
-                    const edge = edges.find((e: any) => e.source === nodeId);
-                    if (edge) return await executeNode(edge.target);
-                    return null;
+                    // Volta para o menu
+                    await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_action" }), "EX", 600);
+                    return await executeNode(nodeId, "");
                 }
 
                 // ──── FASE 5B: Receber nova senha e aplicar ─────
@@ -1009,10 +1020,9 @@ ${linhaDigitavel}` : ""}
                         ]})
                     });
                     await socket.sendMessage(remoteJid, { text: `✅ *Senha do WiFi alterada com sucesso!*\n\n🔒 Nova senha: *${newPass}*\n\n_Conecte seus dispositivos com a nova senha._` });
-                    await redis.del(tr069StateKey);
-                    const edge = edges.find((e: any) => e.source === nodeId);
-                    if (edge) return await executeNode(edge.target);
-                    return null;
+                    // Volta para o menu
+                    await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_action" }), "EX", 600);
+                    return await executeNode(nodeId, "");
                 }
 
                 // ──── FASE 6A: Seleção de DNS (predefinido ou personalizado) ─────
@@ -1046,10 +1056,9 @@ ${linhaDigitavel}` : ""}
                         `🔵 *DNS Secundário:* ${secDns}\n\n` +
                         `_Os dispositivos da sua rede vão usar o novo DNS na próxima reconexão._`
                     });
-                    await redis.del(tr069StateKey);
-                    const edgeDns = edges.find((e: any) => e.source === nodeId);
-                    if (edgeDns) return await executeNode(edgeDns.target);
-                    return null;
+                    // Volta para o menu
+                    await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_action" }), "EX", 600);
+                    return await executeNode(nodeId, "");
                 }
 
                 // ──── FASE 6B: DNS personalizado — pede primário ─────────────
@@ -1087,10 +1096,24 @@ ${linhaDigitavel}` : ""}
                         `🔵 *DNS Secundário:* ${secDns}\n\n` +
                         `_Os dispositivos da sua rede vão usar o novo DNS na próxima reconexão._`
                     });
-                    await redis.del(tr069StateKey);
-                    const edgeDnsC = edges.find((e: any) => e.source === nodeId);
-                    if (edgeDnsC) return await executeNode(edgeDnsC.target);
-                    return null;
+                    // Volta para o menu
+                    await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_action" }), "EX", 600);
+                    return await executeNode(nodeId, "");
+                }
+
+                // ──── FASE 7: Voltar ao menu ─────────────────────────────────
+                if (tr069Data.phase === "awaiting_back_to_menu" && inputMsg) {
+                    const choice = inputMsg.trim();
+                    if (choice === "0" || choice.toLowerCase() === "voltar") {
+                        await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_action" }), "EX", 600);
+                        return await executeNode(nodeId, "");
+                    } else {
+                        // Se digitar qualquer outra coisa, encerra o TR-069 e vai para o próximo nó (para não travar)
+                        await redis.del(tr069StateKey);
+                        const edge = edges.find((e: any) => e.source === nodeId);
+                        if (edge) return await executeNode(edge.target);
+                        return null;
+                    }
                 }
 
                 // Fallback — limpa estado e avança
