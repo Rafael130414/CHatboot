@@ -36,24 +36,22 @@ async function testIxc() {
             const clientId = clientData.registros[0].id;
             console.log("Client ID found:", clientId);
 
-            // Testar logins (radusuarios)
-            console.log("Listing logins for client...");
-            const loginsRes = await fetch(`${url}/webservice/v1/radusuarios`, {
+            // Testar PDF do boleto
+            const boletoId = "553855";
+            console.log("Fetching PDF for boleto:", boletoId);
+            const pdfRes = await fetch(`${url}/webservice/v1/fn_areceber/imprimir_boletos`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Basic ${auth}`,
-                    "ixcsoft": "listar"
+                    "Authorization": `Basic ${auth}`
                 },
                 body: JSON.stringify({
-                    qtype: "radusuarios.id_cliente",
-                    query: clientId,
-                    oper: "=",
-                    rp: "10"
+                    boletos: boletoId,
+                    tipo: "pdf"
                 })
             });
-            const loginsData = await loginsRes.json();
-            console.log("Logins Response:", JSON.stringify(loginsData, null, 2));
+            const pdfData = await pdfRes.json();
+            console.log("PDF Response:", JSON.stringify(pdfData, null, 2));
         } else {
             console.log("CPF not found.");
         }

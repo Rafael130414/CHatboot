@@ -155,4 +155,27 @@ export class IxcService {
             return null;
         }
     }
+
+    static async getBoletoPDF(companyId: number, boletoId: string) {
+        try {
+            let { url, token } = await this.getConfigs(companyId);
+            if (!url.startsWith("http")) url = `https://${url}`;
+            const auth = Buffer.from(token).toString("base64");
+
+            const res = await fetch(`${url}/webservice/v1/fn_areceber/imprimir_boletos`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${auth}`
+                },
+                body: JSON.stringify({
+                    boletos: boletoId,
+                    tipo: "pdf"
+                })
+            });
+            return await res.json();
+        } catch (e) {
+            return null;
+        }
+    }
 }

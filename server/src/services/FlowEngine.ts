@@ -458,6 +458,20 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                                 { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
                             );
                             await socket.sendMessage(remoteJid, { text: msg });
+
+                            // Tentar enviar o PDF
+                            try {
+                                const pdfResult = await IxcService.getBoletoPDF(companyId, result.boleto.id);
+                                if (pdfResult && pdfResult.type === "success" && pdfResult.link) {
+                                    await socket.sendMessage(remoteJid, {
+                                        document: { url: pdfResult.link },
+                                        fileName: `boleto_${vencimento.replace(/\//g, "-")}.pdf`,
+                                        mimetype: "application/pdf"
+                                    });
+                                }
+                            } catch (error) {
+                                console.error("[IXC PDF SEND ERROR]:", error);
+                            }
                             await redis.del(ixcStateKey);
                             await redis.del(`ixcLogins:${ticketId}`);
                         } else {
@@ -494,6 +508,20 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                                     { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
                                 );
                                 await socket.sendMessage(remoteJid, { text: msg });
+
+                                // Tentar enviar o PDF
+                                try {
+                                    const pdfResult = await IxcService.getBoletoPDF(companyId, result.boleto.id);
+                                    if (pdfResult && pdfResult.type === "success" && pdfResult.link) {
+                                        await socket.sendMessage(remoteJid, {
+                                            document: { url: pdfResult.link },
+                                            fileName: `boleto_${vencimento.replace(/\//g, "-")}.pdf`,
+                                            mimetype: "application/pdf"
+                                        });
+                                    }
+                                } catch (error) {
+                                    console.error("[IXC PDF SEND ERROR]:", error);
+                                }
                             } else {
                                 await socket.sendMessage(remoteJid, { text: result.message || "Não encontramos boletos em aberto." });
                             }
