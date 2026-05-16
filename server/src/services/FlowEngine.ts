@@ -498,10 +498,13 @@ ${linhaDigitavel}` : ""}
                         const logins = await IxcService.listLogins(companyId, cpfValue);
 
                         if (logins && logins.length > 1) {
-                            let msg = "🔍 Identificamos múltiplos acessos em seu CPF.\nQual deles você deseja consultar?\n";
+                            let msg = "🔍 *Identificamos mais de um acesso vinculado ao seu CPF.*\nQual deles você deseja consultar?\n";
                             logins.forEach((l: any, i: number) => {
-                                msg += `\n*${i + 1}* - ${l.endereco} (${l.usuario})`;
+                                const loginLabel = l.login || l.conexao || `Contrato ${l.id_contrato}`;
+                                const statusIcon = l.online === "S" ? "🟢" : "🔴";
+                                msg += `\n*${i + 1}* ${statusIcon} ${l.endereco}\n   🖥️ Login: ${loginLabel}`;
                             });
+                            msg += "\n\nResponda com o número da opção desejada.";
                             await socket.sendMessage(remoteJid, { text: msg });
 
                             await redis.set(ixcStateKey, "waiting", "EX", 600);
