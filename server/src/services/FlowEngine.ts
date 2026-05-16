@@ -738,64 +738,50 @@ ${linhaDigitavel}` : ""}
                         return null;
                     }
 
-                    // ── Ação: Verificar Sinal Ótico (FiberHome + Paths alternativos) ──
+                    // ── Ação: Verificar Sinal Ótico (FiberHome X_FH_GponInterfaceConfig) ──
                     if (chosenOpt.includes("Sinal")) {
                         await socket.sendMessage(remoteJid, { text: "📡 *Consultando sinal da sua ONU...*\nAguarde um momento." });
 
-                        // Força leitura de múltiplos caminhos possíveis (FiberHome usa paths proprietários)
+                        // Força leitura do path proprietário correto FiberHome
                         await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`, {
                             method: "POST", headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ name: "getParameterValues", parameterNames: [
-                                // Caminhos padrão TR-069
-                                "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.RXPower",
-                                "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.TXPower",
-                                "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.RXPowerDiagnose",
-                                // Caminhos proprietários FiberHome
-                                "InternetGatewayDevice.X_FH_Optics.RxOpticalPower",
-                                "InternetGatewayDevice.X_FH_Optics.TxOpticalPower",
-                                "InternetGatewayDevice.X_FH_Optics.OpticsTemperature",
-                                // Status do link WAN
+                                // Path proprietário FiberHome GPON (correto para HG6143D)
+                                "InternetGatewayDevice.WANDevice.1.X_FH_GponInterfaceConfig.RXPower",
+                                "InternetGatewayDevice.WANDevice.1.X_FH_GponInterfaceConfig.TXPower",
+                                "InternetGatewayDevice.WANDevice.1.X_FH_GponInterfaceConfig.BiasCurrent",
+                                "InternetGatewayDevice.WANDevice.1.X_FH_GponInterfaceConfig.TransceiverTemperature",
+                                // Status do link e PPPoE
                                 "InternetGatewayDevice.WANDevice.1.WANCommonInterfaceConfig.PhysicalLinkStatus",
                                 "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ConnectionStatus"
                             ]})
                         });
-                        await new Promise(r => setTimeout(r, 5000)); // Aguarda ONU responder
+                        await new Promise(r => setTimeout(r, 6000)); // Aguarda ONU responder (CGNAT pode demorar)
 
                         // Busca os dados atualizados
-                        const sigRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.WANDevice.1,InternetGatewayDevice.X_FH_Optics`);
-                        let rxPower: string = "N/A", txPower: string = "N/A", linkStatus: string = "N/A", connStatus: string = "N/A";
+                        const sigRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.WANDevice.1`);
+                        let rxPower: string = "N/A", txPower: string = "N/A", linkStatus: string = "N/A", connStatus: string = "N/A", temp: string = "N/A";
 
                         if (sigRes.ok) {
                             try {
                                 const sigData = await sigRes.json();
                                 const wan1 = sigData?.InternetGatewayDevice?.WANDevice?.["1"] || {};
-                                const fhOptics = sigData?.InternetGatewayDevice?.X_FH_Optics || {};
+                                const gpon = wan1?.X_FH_GponInterfaceConfig || {};
 
-                                // Tenta caminhos proprietários FiberHome primeiro
-                                const fhRx = fhOptics?.RxOpticalPower?._value;
-                                const fhTx = fhOptics?.TxOpticalPower?._value;
-
-                                // Fallback para padrão TR-069
-                                const stdRx = wan1?.WANPONInterfaceConfig?.RXPower?._value
-                                    || wan1?.WANPONInterfaceConfig?.RXPowerDiagnose?._value;
-                                const stdTx = wan1?.WANPONInterfaceConfig?.TXPower?._value;
-
-                                rxPower = (fhRx && fhRx !== "0" && fhRx !== 0) ? String(fhRx)
-                                        : (stdRx && stdRx !== "0" && stdRx !== 0) ? String(stdRx) : "N/A";
-                                txPower = (fhTx && fhTx !== "0" && fhTx !== 0) ? String(fhTx)
-                                        : (stdTx && stdTx !== "0" && stdTx !== 0) ? String(stdTx) : "N/A";
-
+                                rxPower  = gpon?.RXPower?._value   ?? "N/A";
+                                txPower  = gpon?.TXPower?._value   ?? "N/A";
+                                temp     = gpon?.TransceiverTemperature?._value ?? "N/A";
                                 linkStatus = wan1?.WANCommonInterfaceConfig?.PhysicalLinkStatus?._value ?? "N/A";
                                 connStatus = wan1?.WANConnectionDevice?.["1"]?.WANPPPConnection?.["1"]?.ConnectionStatus?._value ?? "N/A";
                             } catch (_) {}
                         }
 
-                        // Converte valor numérico (alguns firmwares retornam em 0.001 dBm)
+                        // Normaliza o valor (FiberHome retorna em 0.01 dBm → dividir por 100, ou já em dBm)
                         const parseSignal = (val: string): string => {
-                            const n = parseFloat(val);
+                            const n = parseFloat(String(val));
                             if (isNaN(n) || n === 0) return "N/A";
-                            // FiberHome às vezes retorna em unidades de 0.001 dBm
-                            if (Math.abs(n) > 1000) return (n / 1000).toFixed(2);
+                            if (Math.abs(n) > 100) return (n / 100).toFixed(2);   // 0.01 dBm
+                            if (Math.abs(n) > 1000) return (n / 1000).toFixed(2); // 0.001 dBm
                             return n.toFixed(2);
                         };
 
@@ -810,6 +796,7 @@ ${linhaDigitavel}` : ""}
                             `${signalEmoji} *Qualidade:* ${signalQuality}\n` +
                             `📥 *RX Power (Recepção):* ${rxFmt !== "N/A" ? rxFmt + " dBm" : "N/A"}\n` +
                             `📤 *TX Power (Transmissão):* ${txFmt !== "N/A" ? txFmt + " dBm" : "N/A"}\n` +
+                            `🌡️ *Temperatura:* ${temp !== "N/A" ? temp + " °C" : "N/A"}\n` +
                             `🔗 *Link Físico:* ${linkStatus}\n` +
                             `🌐 *PPPoE:* ${connStatus}\n\n` +
                             `_Referência: Sinal saudável entre -8 e -27 dBm_`
