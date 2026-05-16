@@ -451,14 +451,27 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                         const result = await IxcService.getBoleto(companyId, "", selected.id_contrato);
 
                         if (result.success && result.boleto) {
-                            const { vencimento, link, linhaDigitavel, valor } = result.boleto;
+                            const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
                             const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
                             const msg = interpolate(
                                 node.data.successMessage ||
-                                `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras (copie e cole no seu banco):*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
+                                `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras:*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
                                 { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
                             );
                             await socket.sendMessage(remoteJid, { text: msg });
+                            // Enviar PDF do boleto
+                            try {
+                                const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
+                                if (pdfBuffer) {
+                                    await socket.sendMessage(remoteJid, {
+                                        document: pdfBuffer,
+                                        fileName: `boleto_venc_${vencimento}.pdf`,
+                                        mimetype: "application/pdf"
+                                    });
+                                }
+                            } catch (pdfErr) {
+                                console.error("[IXC PDF SEND]", pdfErr);
+                            }
                             await redis.del(ixcStateKey);
                             await redis.del(`ixcLogins:${ticketId}`);
                         } else {
@@ -488,14 +501,27 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                         } else if (logins && logins.length === 1) {
                             const result = await IxcService.getBoleto(companyId, "", logins[0].id_contrato);
                             if (result.success && result.boleto) {
-                                const { vencimento, link, linhaDigitavel, valor } = result.boleto;
+                                const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
                                 const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
                                 const msg = interpolate(
                                     node.data.successMessage ||
-                                    `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras (copie e cole no seu banco):*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
+                                    `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras:*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
                                     { ...ctx, variables: { ...ctx.variables, link_boleto: link, linha_boleto: linhaDigitavel } }
                                 );
                                 await socket.sendMessage(remoteJid, { text: msg });
+                                // Enviar PDF do boleto
+                                try {
+                                    const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
+                                    if (pdfBuffer) {
+                                        await socket.sendMessage(remoteJid, {
+                                            document: pdfBuffer,
+                                            fileName: `boleto_venc_${vencimento}.pdf`,
+                                            mimetype: "application/pdf"
+                                        });
+                                    }
+                                } catch (pdfErr) {
+                                    console.error("[IXC PDF SEND]", pdfErr);
+                                }
                             } else {
                                 await socket.sendMessage(remoteJid, { text: result.message || "Não encontramos boletos em aberto." });
                             }
@@ -503,9 +529,27 @@ export const processFlow = async (ticketId: number, companyId: number, whatsappI
                             // Fallback caso não ache logins rad, tenta pelo CPF direto no cliente
                             const result = await IxcService.getBoleto(companyId, cpfValue);
                             if (result.success && result.boleto) {
-                                const { vencimento, link, linhaDigitavel, valor } = result.boleto;
-                                const msg = interpolate(node.data.successMessage || `✅ Boleto encontrado!\n\n💰 Valor: R$ ${valor}\n📅 Vencimento: ${vencimento}\n\n🔗 Link: ${link}\n\n🔢 Linha Digitável:\n${linhaDigitavel}`, ctx);
+                                const { vencimento, link, linhaDigitavel, valor, id } = result.boleto;
+                                const hasLinha = linhaDigitavel && linhaDigitavel.length > 10;
+                                const msg = interpolate(
+                                    node.data.successMessage ||
+                                    `✅ *Boleto encontrado!*\n\n💰 *Valor:* R$ ${parseFloat(valor).toFixed(2).replace(".", ",")}\n📅 *Vencimento:* ${vencimento}\n\n${hasLinha ? `🔢 *Código de Barras:*\n\`${linhaDigitavel}\`` : ""}\n\n🔗 *Segunda Via:* ${link}`,
+                                    ctx
+                                );
                                 await socket.sendMessage(remoteJid, { text: msg });
+                                // Enviar PDF do boleto
+                                try {
+                                    const pdfBuffer = await IxcService.getBoletoPDF(companyId, id);
+                                    if (pdfBuffer) {
+                                        await socket.sendMessage(remoteJid, {
+                                            document: pdfBuffer,
+                                            fileName: `boleto_venc_${vencimento}.pdf`,
+                                            mimetype: "application/pdf"
+                                        });
+                                    }
+                                } catch (pdfErr) {
+                                    console.error("[IXC PDF SEND]", pdfErr);
+                                }
                             } else {
                                 await socket.sendMessage(remoteJid, { text: "❌ Não conseguimos localizar seu cadastro ou boletos em aberto." });
                             }

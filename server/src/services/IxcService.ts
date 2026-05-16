@@ -157,13 +157,13 @@ export class IxcService {
         }
     }
 
-    static async getBoletoPDF(companyId: number, boletoId: string) {
+    static async getBoletoPDF(companyId: number, boletoId: string): Promise<Buffer | null> {
         try {
             let { url, token } = await this.getConfigs(companyId);
             if (!url.startsWith("http")) url = `https://${url}`;
             const auth = Buffer.from(token).toString("base64");
 
-            const res = await fetch(`${url}/webservice/v1/fn_areceber/imprimir_boletos`, {
+            const res = await fetch(`${url}/webservice/v1/get_boleto`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -171,11 +171,29 @@ export class IxcService {
                 },
                 body: JSON.stringify({
                     boletos: boletoId,
-                    tipo: "pdf"
+                    juro: "N",
+                    multa: "N",
+                    atualiza_boleto: "S",
+                    tipo_boleto: "arquivo",
+                    base64: "S",
+                    layout_impressao: ""
                 })
             });
-            return await res.json();
+
+            const text = await res.text();
+            // A API retorna base64 puro ou JSON com erro
+            if (text && text.length > 100 && !text.trimStart().startsWith("{")) {
+                return Buffer.from(text, "base64");
+            }
+            // Tentar parse JSON para mensagens de erro
+            try {
+                const json = JSON.parse(text);
+                const b64 = json.arquivo || json.base64 || json.pdf || json.content;
+                if (b64) return Buffer.from(b64, "base64");
+            } catch (_) { /* não é JSON */ }
+            return null;
         } catch (e) {
+            console.error("[IXC getBoletoPDF error]", e);
             return null;
         }
     }
