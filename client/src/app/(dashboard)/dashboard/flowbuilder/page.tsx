@@ -351,6 +351,43 @@ const IxcBoletoNode = ({ data, selected }: NodeProps) => (
     </div>
 );
 
+const TR069Node = ({ data, selected }: NodeProps) => (
+    <div className={`${nBase} p-5 relative overflow-visible`} style={{
+        background: "rgba(10,22,40,0.97)",
+        border: `2px solid ${selected ? "#22d3ee" : "rgba(34,211,238,0.3)"}`,
+        boxShadow: selected ? "0 0 40px rgba(34,211,238,0.5), inset 0 0 20px rgba(34,211,238,0.05)" : "0 8px 32px rgba(0,0,0,0.4)",
+        borderRadius: '20px'
+    }}>
+        <Handle type="target" position={Position.Top} className="!bg-[#22d3ee] !w-3.5 !h-3.5 !border-2 !border-[#060D1A]" />
+        <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg relative" style={{ background: "linear-gradient(135deg, #0891b2, #06b6d4)" }}>
+                <Terminal className="w-4 h-4 text-white" />
+                <div className="absolute inset-0 rounded-xl animate-pulse opacity-20" style={{ background: "radial-gradient(circle, #22d3ee, transparent)" }} />
+            </div>
+            <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-cyan-400">Gestão TR-069</span>
+                <div className="h-0.5 w-10 rounded-full mt-0.5" style={{ background: "linear-gradient(90deg, #22d3ee, transparent)" }} />
+            </div>
+        </div>
+        <div className="space-y-1.5">
+            {[
+                { icon: "📶", label: "Verificar Sinal" },
+                { icon: "🔁", label: "Reiniciar Roteador" },
+                { icon: "📡", label: "Alterar WiFi/Senha" },
+            ].map((item, i) => (
+                <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.08)" }}>
+                    <span className="text-[10px]">{item.icon}</span>
+                    <span className="text-[10px] text-cyan-300/80 font-semibold">{item.label}</span>
+                </div>
+            ))}
+        </div>
+        <div className="mt-2 px-2 py-1 rounded-lg" style={{ background: "rgba(0,0,0,0.3)" }}>
+            <p className="text-[9px] text-slate-500 truncate">CPF via: <span className="text-cyan-400">{`{{${(data as any).cpfVariable || 'cpf'}}}`}</span></p>
+        </div>
+        <Handle type="source" position={Position.Bottom} className="!bg-[#22d3ee] !w-3.5 !h-3.5 !border-2 !border-[#060D1A]" />
+    </div>
+);
+
 const nodeTypes = {
     startNode: StartNode, messageNode: MessageNode, menuNode: MenuNode,
     transferNode: TransferNode, endNode: EndNode, delayNode: DelayNode,
@@ -359,6 +396,7 @@ const nodeTypes = {
     httpNode: HTTPNode, setVariableNode: SetVariableNode, tagNode: TagNode,
     switchNode: SwitchNode, loopNode: LoopNode,
     ixcBoletoNode: IxcBoletoNode,
+    tr069Node: TR069Node,
 };
 
 // ── Painel de Edição do Nó ──────────────────────────
@@ -384,7 +422,8 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
         conditionNode: "#f59e0b", switchNode: "#f59e0b", loopNode: "#0ea5e9", aiNode: "#a855f7", transferNode: "#8b5cf6", endNode: "#ef4444",
         imageNode: "#ec4899", audioNode: "#f97316", documentNode: "#64748b",
         httpNode: "#06b6d4", setVariableNode: "#eab308", tagNode: "#10b981",
-        ixcBoletoNode: "#8b5cf6"
+        ixcBoletoNode: "#8b5cf6",
+        tr069Node: "#22d3ee",
     };
     const color = nodeColors[node.type || ""] || "#00c9a7";
 
@@ -756,6 +795,53 @@ function NodePanel({ node, departments, onUpdate, onDelete }: { node: Node | nul
                     </div>
                 )}
 
+                {node.type === "tr069Node" && (
+                    <div className="space-y-5">
+                        <div>
+                            <label style={labelStyle}>Variável do CPF</label>
+                            <input style={inputStyle} value={d.cpfVariable || "cpf"} placeholder="Ex: cpf"
+                                onChange={e => onUpdate(node.id, { ...d, cpfVariable: e.target.value })} />
+                            <p className="text-[10px] text-slate-600 mt-1.5">O nó vai buscar esta variável no contexto. Se não existir, pede ao cliente.</p>
+                        </div>
+                        <div>
+                            <label style={labelStyle}>Mensagem ao Pedir CPF</label>
+                            <textarea rows={3} style={{ ...inputStyle, resize: "none" }}
+                                value={d.askCpfMessage || ""}
+                                placeholder="Por favor, informe seu CPF para acessar as opções da sua conexão."
+                                onChange={e => onUpdate(node.id, { ...d, askCpfMessage: e.target.value })} />
+                        </div>
+                        <div>
+                            <label style={labelStyle}>Opções do Menu</label>
+                            <p className="text-[10px] text-slate-500 -mt-2 mb-3">Selecione quais opções aparecerão no WhatsApp do cliente:</p>
+                            {[
+                                { key: "showSignal", label: "📶 Verificar Sinal Ótico" },
+                                { key: "showReboot", label: "🔁 Reiniciar Roteador" },
+                                { key: "showWifiName", label: "📡 Alterar Nome do WiFi" },
+                                { key: "showWifiPass", label: "🔒 Alterar Senha do WiFi" },
+                            ].map(opt => (
+                                <label key={opt.key} className="flex items-center gap-3 py-2 px-3 rounded-xl mb-2 cursor-pointer hover:bg-white/5 transition-colors" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+                                    <input type="checkbox"
+                                        checked={d[opt.key] !== false}
+                                        onChange={e => onUpdate(node.id, { ...d, [opt.key]: e.target.checked })}
+                                        className="rounded" />
+                                    <span className="text-[11px] text-slate-300 font-semibold">{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <div className="p-3 rounded-xl" style={{ background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.15)" }}>
+                            <p className="text-[10px] text-cyan-400 font-bold mb-1">⚡ Como funciona</p>
+                            <ol className="text-[10px] text-slate-400 space-y-1 leading-relaxed list-decimal list-inside">
+                                <li>Verifica se já tem CPF salvo no contexto</li>
+                                <li>Se não tiver, pede ao cliente</li>
+                                <li>Busca contratos no IXC pelo CPF</li>
+                                <li>Se houver mais de 1, pede para escolher</li>
+                                <li>Busca a ONU no GenieACS pelo PPPoE</li>
+                                <li>Exibe menu com as opções configuradas</li>
+                            </ol>
+                        </div>
+                    </div>
+                )}
+
                 {/* Variáveis disponíveis */}
                 <div className="p-3 rounded-xl" style={{ background: "rgba(0,201,167,0.05)", border: "1px solid rgba(0,201,167,0.1)" }}>
                     <p className="text-[10px] font-bold text-emerald-500 mb-2">📌 Variáveis disponíveis</p>
@@ -1100,10 +1186,14 @@ export default function FlowbuilderPage() {
             const edge = edges.find(e => e.source === nodeId);
             if (edge) setTimeout(() => processSimStep(edge.target, ""), 600);
         }
-        else if (node.type === "transferNode") {
-            setSimMessages(prev => [...prev, { role: 'bot', text: `*🔄 [Simulador] Transferindo para: ${data.departmentName || "Setor"}*` }]);
+        else if (node.type === "ixcBoletoNode") {
+            setSimMessages(prev => [...prev, { role: 'bot', text: "🏦 *[IXC]* Processando boleto... (simulação)\n💳 Venc: 10/06/2026 | Valor: R$ 89,90\n📋 Código de barras simulado" }]);
             const edge = edges.find(e => e.source === nodeId);
-            if (edge) setTimeout(() => processSimStep(edge.target, ""), 800);
+            if (edge) setTimeout(() => processSimStep(edge.target, ""), 1000);
+        }
+        else if (node.type === "tr069Node") {
+            setSimMessages(prev => [...prev, { role: 'bot', text: "📶 *Gestão da sua Conexão*\n\nO que você deseja fazer?\n1. 📶 Verificar Sinal\n2. 🔁 Reiniciar Roteador\n3. 📡 Alterar Nome do WiFi\n4. 🔒 Alterar Senha do WiFi" }]);
+            setActiveSimNodeId(nodeId);
         }
         else if (node.type === "endNode") {
             setSimMessages(prev => [...prev, { role: 'bot', text: "🏁 *Fluxo encerrado.*" }]);
@@ -1240,6 +1330,7 @@ export default function FlowbuilderPage() {
             aiNode: "#a855f7",
             httpNode: "#06b6d4",
             tagNode: "#10b981",
+            tr069Node: "#22d3ee",
         };
         return colors[type || ""] || "#00c9a7";
     };
@@ -1275,6 +1366,8 @@ export default function FlowbuilderPage() {
             setVariableNode: { varName: "", varValue: "" },
             tagNode: { tagName: "" },
             ixcBoletoNode: { cpfVariable: "cpf", successMessage: "" },
+            tr069Node: { cpfVariable: "cpf", askCpfMessage: "", showSignal: true, showReboot: true, showWifiName: true, showWifiPass: true },
+
         };
         const newNode: Node = {
             id: `${type}-${Date.now()}`, type,
@@ -1350,6 +1443,7 @@ export default function FlowbuilderPage() {
                 { type: "httpNode", icon: Globe, label: "HTTP Request", color: "#06b6d4", desc: "Chama API externa" },
                 { type: "tagNode", icon: TagIcon, label: "Tag", color: "#10b981", desc: "Adiciona tag ao contato" },
                 { type: "ixcBoletoNode", icon: FileText, label: "IXC Boleto", color: "#8b5cf6", desc: "Busca boleto e contratos" },
+                { type: "tr069Node", icon: Terminal, label: "Gestão TR-069", color: "#22d3ee", desc: "WiFi, Sinal e Reboot" },
             ]
         },
     ];
