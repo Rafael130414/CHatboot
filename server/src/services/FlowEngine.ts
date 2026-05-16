@@ -725,7 +725,8 @@ ${linhaDigitavel}` : ""}
                     // Usar deviceId cacheado da fase de detecção (ou buscar se não tiver)
                     let deviceId: string | null = tr069Data.cachedDeviceId || null;
                     if (!deviceId) {
-                        const devRes = await fetch(`${GENIEACS_URL}/devices?query={"InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username._value":"${pppoe}"}&&projection=_id`);
+                        // BUG FIX: era &&projection — correto é &projection
+                        const devRes = await fetch(`${GENIEACS_URL}/devices?query=${encodeURIComponent(JSON.stringify({"InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username._value": pppoe}))}&projection=_id`);
                         const devices: any[] = devRes.ok ? await devRes.json() : [];
                         if (devices.length > 0) deviceId = devices[0]._id;
                     }
@@ -758,13 +759,15 @@ ${linhaDigitavel}` : ""}
                         });
                         await new Promise(r => setTimeout(r, 6000)); // Aguarda ONU responder (CGNAT pode demorar)
 
-                        // Busca os dados atualizados
-                        const sigRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.WANDevice.1`);
+                        // BUG FIX: GenieACS retorna ARRAY mesmo quando busca por ID, precisa do [0]
+                        // Usa query ao invés de /devices/{id} para garantir o retorno correto
+                        const sigRes = await fetch(`${GENIEACS_URL}/devices?query=${encodeURIComponent(JSON.stringify({_id: deviceId}))}&projection=InternetGatewayDevice.WANDevice.1`);
                         let rxPower: string = "N/A", txPower: string = "N/A", linkStatus: string = "N/A", connStatus: string = "N/A", temp: string = "N/A";
 
                         if (sigRes.ok) {
                             try {
-                                const sigData = await sigRes.json();
+                                const sigArr = await sigRes.json();
+                                const sigData = Array.isArray(sigArr) ? sigArr[0] : sigArr; // garante objeto
                                 const wan1 = sigData?.InternetGatewayDevice?.WANDevice?.["1"] || {};
                                 const gpon = wan1?.X_FH_GponInterfaceConfig || {};
 
@@ -832,11 +835,13 @@ ${linhaDigitavel}` : ""}
                     // ── Ação: Ver DNS Atual ──
                     else if (chosenOpt.includes("Ver DNS")) {
                         await socket.sendMessage(remoteJid, { text: "🌐 *Consultando DNS configurado na sua rede...*" });
-                        const dnsRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement`);
+                        // BUG FIX: usa query ao invés de /devices/{id} e acessa via [0]
+                        const dnsRes = await fetch(`${GENIEACS_URL}/devices?query=${encodeURIComponent(JSON.stringify({_id: deviceId}))}&projection=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement`);
                         let priDns = "N/A", secDns = "N/A";
                         if (dnsRes.ok) {
                             try {
-                                const dnsData = await dnsRes.json();
+                                const dnsArr = await dnsRes.json();
+                                const dnsData = Array.isArray(dnsArr) ? dnsArr[0] : dnsArr;
                                 const dnsServers: string = dnsData?.InternetGatewayDevice?.LANDevice?.["1"]?.LANHostConfigManagement?.DNSServers?._value ?? "";
                                 const parts = dnsServers.split(",").map((s: string) => s.trim()).filter(Boolean);
                                 priDns = parts[0] || "N/A";
