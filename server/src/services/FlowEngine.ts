@@ -672,19 +672,39 @@ ${linhaDigitavel}` : ""}
                     return await executeNode(nodeId, "");
                 }
 
-                // ──── FASE 3: Exibir menu de ações ─────────────
+                // ──── FASE 3: Exibir menu de ações (com detecção ONU vs Roteador) ────
                 if (tr069Data.phase === "awaiting_action" && !inputMsg) {
+                    // Detectar se é ONU ou Roteador buscando o device já com projeção ampla
+                    let isONU = false;
+                    let cachedDeviceId: string | null = null;
+                    try {
+                        const detRes = await fetch(`${GENIEACS_URL}/devices?query={"InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username._value":"${tr069Data.pppoe}"}&projection=_id,InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig,InternetGatewayDevice.X_FH_Optics`);
+                        const detDevices: any[] = detRes.ok ? await detRes.json() : [];
+                        if (detDevices.length > 0) {
+                            cachedDeviceId = detDevices[0]._id;
+                            // É ONU se tiver WANPONInterfaceConfig ou X_FH_Optics ou se o ID contiver fabricantes de ONU
+                            const devId = (cachedDeviceId || "").toUpperCase();
+                            const hasPON = detDevices[0]?.InternetGatewayDevice?.WANDevice?.["1"]?.WANPONInterfaceConfig !== undefined;
+                            const hasFHOptics = detDevices[0]?.InternetGatewayDevice?.X_FH_Optics !== undefined;
+                            const isONUModel = devId.includes("FHTT") || devId.includes("ZXHN") || devId.includes("HG6") || devId.includes("AN5") || devId.includes("GPN") || devId.includes("ONU") || devId.includes("GPON");
+                            isONU = hasPON || hasFHOptics || isONUModel;
+                        }
+                    } catch (_) {}
+
                     const opts: string[] = [];
-                    if (node.data.showSignal !== false) opts.push("📶 Verificar Sinal Ótico");
-                    if (node.data.showReboot !== false) opts.push("🔁 Reiniciar Roteador");
+                    if (node.data.showSignal !== false && isONU) opts.push("📶 Verificar Sinal Ótico");
+                    if (node.data.showReboot !== false) opts.push("🔁 Reiniciar Dispositivo");
                     if (node.data.showWifiName !== false) opts.push("📡 Alterar Nome do WiFi");
                     if (node.data.showWifiPass !== false) opts.push("🔒 Alterar Senha do WiFi");
+                    opts.push("🌐 Ver DNS Atual");
+                    opts.push("⚙️ Alterar DNS");
 
-                    let menuMsg = `⚙️ *Gestão da sua Conexão*\n*Login:* ${tr069Data.pppoe}\n\nO que você deseja fazer?\n`;
+                    const deviceType = isONU ? "🔴 ONU/Fibra" : "📦 Roteador";
+                    let menuMsg = `⚙️ *Gestão da sua Conexão*\n*Login:* ${tr069Data.pppoe}\n*Dispositivo:* ${deviceType}\n\nO que você deseja fazer?\n`;
                     opts.forEach((o, i) => { menuMsg += `\n*${i + 1}.* ${o}`; });
                     await socket.sendMessage(remoteJid, { text: menuMsg });
 
-                    const newState = { ...tr069Data, phase: "awaiting_action_choice", opts };
+                    const newState = { ...tr069Data, phase: "awaiting_action_choice", opts, isONU, cachedDeviceId };
                     await redis.set(tr069StateKey, JSON.stringify(newState), "EX", 600);
                     return nodeId;
                 }
@@ -702,70 +722,96 @@ ${linhaDigitavel}` : ""}
 
                     const chosenOpt: string = opts[choice];
 
-                    // Buscar o device no GenieACS pelo PPPoE
-                    const devRes = await fetch(`${GENIEACS_URL}/devices?projection=_id,InternetGatewayDevice.WANDevice,Device.WANDevice,InternetGatewayDevice.LANDevice,Device.LANDevice`);
-                    const devices: any[] = devRes.ok ? await devRes.json() : [];
-
-                    // Procurar a ONU que tem esse PPPoE
-                    let deviceId: string | null = null;
-                    const findUsername = (obj: any): string | null => {
-                        if (!obj || typeof obj !== "object") return null;
-                        if (obj.Username?._value) return obj.Username._value;
-                        for (const k of Object.keys(obj)) {
-                            const r = findUsername(obj[k]);
-                            if (r) return r;
-                        }
-                        return null;
-                    };
-                    for (const d of devices) {
-                        const u = findUsername(d);
-                        if (u && u.toLowerCase() === pppoe.toLowerCase()) {
-                            deviceId = d._id;
-                            break;
-                        }
+                    // Usar deviceId cacheado da fase de detecção (ou buscar se não tiver)
+                    let deviceId: string | null = tr069Data.cachedDeviceId || null;
+                    if (!deviceId) {
+                        const devRes = await fetch(`${GENIEACS_URL}/devices?query={"InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username._value":"${pppoe}"}&&projection=_id`);
+                        const devices: any[] = devRes.ok ? await devRes.json() : [];
+                        if (devices.length > 0) deviceId = devices[0]._id;
                     }
 
                     if (!deviceId) {
-                        await socket.sendMessage(remoteJid, { text: `⚠️ Não encontramos sua ONU ativa no sistema de gerência. Tente novamente em instantes.` });
+                        await socket.sendMessage(remoteJid, { text: `⚠️ Não encontramos seu dispositivo ativo no sistema de gerência. Tente novamente em instantes.` });
                         await redis.del(tr069StateKey);
                         const edge = edges.find((e: any) => e.source === nodeId);
                         if (edge) return await executeNode(edge.target);
                         return null;
                     }
 
-                    // ── Ação: Verificar Sinal ──
+                    // ── Ação: Verificar Sinal Ótico (FiberHome + Paths alternativos) ──
                     if (chosenOpt.includes("Sinal")) {
                         await socket.sendMessage(remoteJid, { text: "📡 *Consultando sinal da sua ONU...*\nAguarde um momento." });
-                        // Summon (forçar inform imediato)
+
+                        // Força leitura de múltiplos caminhos possíveis (FiberHome usa paths proprietários)
                         await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`, {
                             method: "POST", headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ name: "getParameterValues", parameterNames: [
+                                // Caminhos padrão TR-069
                                 "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.RXPower",
                                 "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.TXPower",
-                                "InternetGatewayDevice.WANDevice.1.WANCommonInterfaceConfig.PhysicalLinkStatus"
+                                "InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.RXPowerDiagnose",
+                                // Caminhos proprietários FiberHome
+                                "InternetGatewayDevice.X_FH_Optics.RxOpticalPower",
+                                "InternetGatewayDevice.X_FH_Optics.TxOpticalPower",
+                                "InternetGatewayDevice.X_FH_Optics.OpticsTemperature",
+                                // Status do link WAN
+                                "InternetGatewayDevice.WANDevice.1.WANCommonInterfaceConfig.PhysicalLinkStatus",
+                                "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ConnectionStatus"
                             ]})
                         });
-                        await new Promise(r => setTimeout(r, 4000));
+                        await new Promise(r => setTimeout(r, 5000)); // Aguarda ONU responder
 
-                        // Re-buscar o device com parâmetros de sinal
-                        const sigRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.WANDevice`);
-                        let rxPower = "N/A", txPower = "N/A", linkStatus = "N/A";
+                        // Busca os dados atualizados
+                        const sigRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.WANDevice.1,InternetGatewayDevice.X_FH_Optics`);
+                        let rxPower: string = "N/A", txPower: string = "N/A", linkStatus: string = "N/A", connStatus: string = "N/A";
+
                         if (sigRes.ok) {
                             try {
                                 const sigData = await sigRes.json();
-                                const wan = sigData?.InternetGatewayDevice?.WANDevice?.["1"] || {};
-                                rxPower = wan?.WANPONInterfaceConfig?.RXPower?._value ?? "N/A";
-                                txPower = wan?.WANPONInterfaceConfig?.TXPower?._value ?? "N/A";
-                                linkStatus = wan?.WANCommonInterfaceConfig?.PhysicalLinkStatus?._value ?? "N/A";
+                                const wan1 = sigData?.InternetGatewayDevice?.WANDevice?.["1"] || {};
+                                const fhOptics = sigData?.InternetGatewayDevice?.X_FH_Optics || {};
+
+                                // Tenta caminhos proprietários FiberHome primeiro
+                                const fhRx = fhOptics?.RxOpticalPower?._value;
+                                const fhTx = fhOptics?.TxOpticalPower?._value;
+
+                                // Fallback para padrão TR-069
+                                const stdRx = wan1?.WANPONInterfaceConfig?.RXPower?._value
+                                    || wan1?.WANPONInterfaceConfig?.RXPowerDiagnose?._value;
+                                const stdTx = wan1?.WANPONInterfaceConfig?.TXPower?._value;
+
+                                rxPower = (fhRx && fhRx !== "0" && fhRx !== 0) ? String(fhRx)
+                                        : (stdRx && stdRx !== "0" && stdRx !== 0) ? String(stdRx) : "N/A";
+                                txPower = (fhTx && fhTx !== "0" && fhTx !== 0) ? String(fhTx)
+                                        : (stdTx && stdTx !== "0" && stdTx !== 0) ? String(stdTx) : "N/A";
+
+                                linkStatus = wan1?.WANCommonInterfaceConfig?.PhysicalLinkStatus?._value ?? "N/A";
+                                connStatus = wan1?.WANConnectionDevice?.["1"]?.WANPPPConnection?.["1"]?.ConnectionStatus?._value ?? "N/A";
                             } catch (_) {}
                         }
 
-                        const signalEmoji = rxPower !== "N/A" && parseFloat(rxPower) > -27 ? "🟢" : rxPower !== "N/A" ? "🔴" : "⚪";
+                        // Converte valor numérico (alguns firmwares retornam em 0.001 dBm)
+                        const parseSignal = (val: string): string => {
+                            const n = parseFloat(val);
+                            if (isNaN(n) || n === 0) return "N/A";
+                            // FiberHome às vezes retorna em unidades de 0.001 dBm
+                            if (Math.abs(n) > 1000) return (n / 1000).toFixed(2);
+                            return n.toFixed(2);
+                        };
+
+                        const rxFmt = parseSignal(rxPower);
+                        const txFmt = parseSignal(txPower);
+                        const rxNum = parseFloat(rxFmt);
+                        const signalEmoji = isNaN(rxNum) ? "⚪" : rxNum >= -27 ? "🟢" : rxNum >= -30 ? "🟡" : "🔴";
+                        const signalQuality = isNaN(rxNum) ? "Não disponível" : rxNum >= -27 ? "Ótimo" : rxNum >= -30 ? "Aceitável" : "Ruim (verifique o cabeamento)";
+
                         await socket.sendMessage(remoteJid, { text:
                             `📶 *Relatório de Sinal Ótico*\n\n` +
-                            `${signalEmoji} *RX Power (Recepção):* ${rxPower} dBm\n` +
-                            `📤 *TX Power (Transmissão):* ${txPower} dBm\n` +
-                            `🔗 *Status do Link:* ${linkStatus}\n\n` +
+                            `${signalEmoji} *Qualidade:* ${signalQuality}\n` +
+                            `📥 *RX Power (Recepção):* ${rxFmt !== "N/A" ? rxFmt + " dBm" : "N/A"}\n` +
+                            `📤 *TX Power (Transmissão):* ${txFmt !== "N/A" ? txFmt + " dBm" : "N/A"}\n` +
+                            `🔗 *Link Físico:* ${linkStatus}\n` +
+                            `🌐 *PPPoE:* ${connStatus}\n\n` +
                             `_Referência: Sinal saudável entre -8 e -27 dBm_`
                         });
                     }
@@ -792,6 +838,37 @@ ${linhaDigitavel}` : ""}
                     else if (chosenOpt.includes("Senha do WiFi")) {
                         await socket.sendMessage(remoteJid, { text: "🔒 *Alteração de Senha do WiFi*\n\nDigite a *nova senha* da sua rede WiFi (mínimo 8 caracteres):" });
                         const newState = { ...tr069Data, phase: "awaiting_wifi_pass", deviceId };
+                        await redis.set(tr069StateKey, JSON.stringify(newState), "EX", 600);
+                        return nodeId;
+                    }
+
+                    // ── Ação: Ver DNS Atual ──
+                    else if (chosenOpt.includes("Ver DNS")) {
+                        await socket.sendMessage(remoteJid, { text: "🌐 *Consultando DNS configurado na sua rede...*" });
+                        const dnsRes = await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}?projection=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement`);
+                        let priDns = "N/A", secDns = "N/A";
+                        if (dnsRes.ok) {
+                            try {
+                                const dnsData = await dnsRes.json();
+                                const dnsServers: string = dnsData?.InternetGatewayDevice?.LANDevice?.["1"]?.LANHostConfigManagement?.DNSServers?._value ?? "";
+                                const parts = dnsServers.split(",").map((s: string) => s.trim()).filter(Boolean);
+                                priDns = parts[0] || "N/A";
+                                secDns = parts[1] || "N/A";
+                            } catch (_) {}
+                        }
+                        await socket.sendMessage(remoteJid, { text:
+                            `🌐 *DNS Configurado na sua Rede*\n\n` +
+                            `🔵 *DNS Primário:* ${priDns}\n` +
+                            `🔵 *DNS Secundário:* ${secDns}\n\n` +
+                            `_Este é o DNS que sua ONU entrega para os dispositivos da rede local._`
+                        });
+                    }
+
+                    // ── Ação: Alterar DNS ──
+                    else if (chosenOpt.includes("Alterar DNS")) {
+                        const dnsMenu = `⚙️ *Alterar DNS*\n\nEscolha o DNS ou digite um personalizado:\n\n*1.* 🌐 Cloudflare (1.1.1.1 / 1.0.0.1) — Mais rápido\n*2.* 🌐 Google (8.8.8.8 / 8.8.4.4) — Popular\n*3.* 🌐 OpenDNS (208.67.222.222 / 208.67.220.220)\n*4.* ✏️ Digitar DNS personalizado`;
+                        await socket.sendMessage(remoteJid, { text: dnsMenu });
+                        const newState = { ...tr069Data, phase: "awaiting_dns_choice", deviceId };
                         await redis.set(tr069StateKey, JSON.stringify(newState), "EX", 600);
                         return nodeId;
                     }
@@ -843,6 +920,84 @@ ${linhaDigitavel}` : ""}
                     await redis.del(tr069StateKey);
                     const edge = edges.find((e: any) => e.source === nodeId);
                     if (edge) return await executeNode(edge.target);
+                    return null;
+                }
+
+                // ──── FASE 6A: Seleção de DNS (predefinido ou personalizado) ─────
+                if (tr069Data.phase === "awaiting_dns_choice" && inputMsg) {
+                    const pick = inputMsg.trim();
+                    let priDns = "", secDns = "";
+
+                    if (pick === "1") { priDns = "1.1.1.1"; secDns = "1.0.0.1"; }
+                    else if (pick === "2") { priDns = "8.8.8.8"; secDns = "8.8.4.4"; }
+                    else if (pick === "3") { priDns = "208.67.222.222"; secDns = "208.67.220.220"; }
+                    else if (pick === "4") {
+                        await socket.sendMessage(remoteJid, { text: "✏️ Digite o *DNS Primário* (ex: 1.1.1.1):" });
+                        await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_dns_custom_pri" }), "EX", 600);
+                        return nodeId;
+                    } else {
+                        await socket.sendMessage(remoteJid, { text: "❌ Opção inválida. Digite 1, 2, 3 ou 4." });
+                        return nodeId;
+                    }
+
+                    // Aplica o DNS escolhido
+                    await socket.sendMessage(remoteJid, { text: `⏳ Aplicando DNS *${priDns} / ${secDns}*...` });
+                    await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(tr069Data.deviceId)}/tasks?connection_request`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: "setParameterValues", parameterValues: [
+                            ["InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers", `${priDns},${secDns}`, "xsd:string"]
+                        ]})
+                    });
+                    await socket.sendMessage(remoteJid, { text:
+                        `✅ *DNS alterado com sucesso!*\n\n` +
+                        `🔵 *DNS Primário:* ${priDns}\n` +
+                        `🔵 *DNS Secundário:* ${secDns}\n\n` +
+                        `_Os dispositivos da sua rede vão usar o novo DNS na próxima reconexão._`
+                    });
+                    await redis.del(tr069StateKey);
+                    const edgeDns = edges.find((e: any) => e.source === nodeId);
+                    if (edgeDns) return await executeNode(edgeDns.target);
+                    return null;
+                }
+
+                // ──── FASE 6B: DNS personalizado — pede primário ─────────────
+                if (tr069Data.phase === "awaiting_dns_custom_pri" && inputMsg) {
+                    const priDns = inputMsg.trim();
+                    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+                    if (!ipRegex.test(priDns)) {
+                        await socket.sendMessage(remoteJid, { text: "⚠️ IP inválido. Digite um IP válido (ex: 1.1.1.1):" });
+                        return nodeId;
+                    }
+                    await socket.sendMessage(remoteJid, { text: `✅ DNS Primário: *${priDns}*\n\nAgora digite o *DNS Secundário* (ex: 1.0.0.1):` });
+                    await redis.set(tr069StateKey, JSON.stringify({ ...tr069Data, phase: "awaiting_dns_custom_sec", priDns }), "EX", 600);
+                    return nodeId;
+                }
+
+                // ──── FASE 6C: DNS personalizado — pede secundário e aplica ──
+                if (tr069Data.phase === "awaiting_dns_custom_sec" && inputMsg) {
+                    const secDns = inputMsg.trim();
+                    const priDns = tr069Data.priDns || "8.8.8.8";
+                    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+                    if (!ipRegex.test(secDns)) {
+                        await socket.sendMessage(remoteJid, { text: "⚠️ IP inválido. Digite um IP válido (ex: 1.0.0.1):" });
+                        return nodeId;
+                    }
+                    await socket.sendMessage(remoteJid, { text: `⏳ Aplicando DNS personalizado *${priDns} / ${secDns}*...` });
+                    await fetch(`${GENIEACS_URL}/devices/${encodeURIComponent(tr069Data.deviceId)}/tasks?connection_request`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: "setParameterValues", parameterValues: [
+                            ["InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers", `${priDns},${secDns}`, "xsd:string"]
+                        ]})
+                    });
+                    await socket.sendMessage(remoteJid, { text:
+                        `✅ *DNS personalizado aplicado com sucesso!*\n\n` +
+                        `🔵 *DNS Primário:* ${priDns}\n` +
+                        `🔵 *DNS Secundário:* ${secDns}\n\n` +
+                        `_Os dispositivos da sua rede vão usar o novo DNS na próxima reconexão._`
+                    });
+                    await redis.del(tr069StateKey);
+                    const edgeDnsC = edges.find((e: any) => e.source === nodeId);
+                    if (edgeDnsC) return await executeNode(edgeDnsC.target);
                     return null;
                 }
 
