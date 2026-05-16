@@ -14,7 +14,7 @@ export class GenieACSSyncService {
                 return;
             }
 
-            const res = await fetch(`${this.GENIEACS_URL}/devices?projection=_id,InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANPPPConnection.*.Username,Device.WANDevice.*.WANConnectionDevice.*.WANPPPConnection.*.Username,VirtualParameters.ClientName`);
+            const res = await fetch(`${this.GENIEACS_URL}/devices?projection=_id,InternetGatewayDevice.WANDevice,Device.WANDevice,InternetGatewayDevice.DeviceInfo.ProvisioningCode,Device.DeviceInfo.ProvisioningCode,VirtualParameters.ClientName`);
 
             if (!res.ok) {
                 console.error("[GenieACSSync] Erro ao buscar devices:", res.status, res.statusText);
